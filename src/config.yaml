@@ -1,0 +1,85 @@
+# Fonte única de verdade de configuração do projeto (carregada por src/config.py).
+project:
+  name: "tcc"
+
+aoi:
+  region_code: "310044"  # Região Geográfica Imediata de Guaxupé (IBGE)
+  vector_source: "ibge_mesh"  # malha vetorial do IBGE (versão 2025, MG)
+  mesh_path: "data/external/ibge/mg_rg_immediatas_2025/mg_rg_immediatas_2025.shp"  # versionada no repo
+
+data:
+  collection: "COPERNICUS/S2_SR_HARMONIZED"
+  bands: ["B2", "B3", "B4", "B8"]
+  dates:
+    start: "2023-01-01"
+    end: "2023-12-31"
+  cloud_threshold: 20  # porcentagem máxima de nuvens (QA60)
+  patch_size: 512
+  coffee_min_ratio: 0.0
+  crs: "EPSG:31983"  # SIRGAS 2000 / UTM 23S (zona UTM da RGI de Guaxupé)
+  export:
+    scale: 10  # resolução nativa das bandas B2/B3/B4/B8 (10 m)
+    max_pixels: 100000000  # acima dos ~58.7M pixels do AOI (10 m) para a exportação não falhar
+
+ground_truth:
+  # Cada fonte é integrada em uma célula de código própria e armazenada em uma
+  # subpasta própria sob MyDrive/tcc/data/interim/<fonte>. O ano de referência
+  # das máscaras é derivado das datas do mosaico (data.dates.start).
+  # Fonte definitiva escolhida no estágio 04 com base no diagnóstico do estágio 03
+  # (AlphaEarth: modelo dedicado a café; MapBiomas subdetecta — recall 0,416).
+  chosen_source: "alphaearth"
+  sources:
+    mapbiomas:
+      enabled: true
+      collection_id: "projects/mapbiomas-public/assets/brazil/lulc/collection9/mapbiomas_collection90_integration_v1"
+      coffee_class: 46  # classe 3.2.2.1 Café (Coleção 9, banda classification_<ano>)
+    alphaearth:
+      enabled: true
+      collection_id: "projects/forestdatapartnership/assets/coffee/model_2025a"
+      probability_threshold: 0.95  # limiar de probabilidade de presença de café
+    s2dr:
+      enabled: false
+
+gee:
+  project: "articulate-case-508513-m4"  # ID do projeto Cloud do Earth Engine
+
+storage:
+  drive_root: "tcc"  # pasta canônica na raiz do Google Drive (MyDrive/<drive_root>)
+  subfolders:
+    data_raw: "data/raw"
+    data_raw_sentinel2: "data/raw/sentinel2"
+    data_interim: "data/interim"
+    data_processed: "data/processed"
+    data_processed_ground_truth: "data/processed/ground_truth"
+    data_processed_composites: "data/processed/composites"
+    data_processed_patches: "data/processed/patches"
+    data_processed_patches_images: "data/processed/patches/images"
+    data_processed_patches_masks: "data/processed/patches/masks"
+    data_external: "data/external"
+    models: "models"
+    artifacts_metrics: "artifacts/metrics"
+    artifacts_metrics_ground_truth: "artifacts/metrics/ground_truth"
+    artifacts_figures: "artifacts/figures"
+    artifacts_runs: "artifacts/runs"
+    secrets: "secrets"
+    repo: "repo"  # espelho do código-fonte (src/) usado como entrega ao runtime
+
+splits:
+  fold_count: 5
+
+loss:
+  dice_weight: 1.0
+  focal_weight: 1.0
+  boundary_weight: 1.0
+
+model:
+  unet_channels: [32, 64, 128, 256]
+  segformer_variant: "nvidia/mit-b1"
+
+training:
+  lr: 1.0e-4
+  epochs: 100
+  batch_size: 16
+
+reproducibility:
+  seed: 42

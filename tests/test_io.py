@@ -1,0 +1,97 @@
+"""Testes de src/io.py (abstração de plataforma e de armazenamento tcc/)."""
+
+from src import io
+from src.config import get_config
+
+
+def test_detect_platform_returns_known_value() -> None:
+    """A detecção de plataforma deve retornar colab, kaggle ou local."""
+    assert io.detect_platform() in {"colab", "kaggle", "local"}
+
+
+def test_ensure_storage_root_idempotent_local(tmp_path, monkeypatch) -> None:
+    """No modo local, a raiz tcc/ e todas as subpastas são criadas de forma idempotente."""
+    monkeypatch.setattr(io, "detect_platform", lambda: "local")
+    monkeypatch.setattr(io, "mount_drive", lambda: tmp_path)
+
+    root = io.ensure_storage_root()
+    assert root == tmp_path / "tcc"
+    assert root.is_dir()
+
+    root_again = io.ensure_storage_root()
+    assert root_again == root
+
+    for sub in get_config()["storage"]["subfolders"].values():
+        assert (root / sub).is_dir()
+
+
+def test_resolve_storage_paths_local(tmp_path, monkeypatch) -> None:
+    """Os caminhos resolvidos devem apontar para dentro da raiz tcc/ no Drive."""
+    monkeypatch.setattr(io, "detect_platform", lambda: "local")
+    monkeypatch.setattr(io, "mount_drive", lambda: tmp_path)
+
+    paths = io.resolve_storage_paths()
+    assert paths["data_raw"] == tmp_path / "tcc" / "data" / "raw"
+    assert paths["models"] == tmp_path / "tcc" / "models"
+
+
+def test_relocate_exported_file_local(tmp_path, monkeypatch) -> None:
+    """No modo local, o artefato da pasta de staging é realocado ao caminho canônico."""
+    monkeypatch.setattr(io, "detect_platform", lambda: "local")
+    monkeypatch.setattr(io, "mount_drive", lambda: tmp_path)
+
+    file_name = "sentinel2_310044_2023-01-01_2023-12-31.tif"
+    staging = tmp_path / "tcc" / file_name
+    staging.parent.mkdir(parents=True, exist_ok=True)
+    staging.write_bytes(b"mosaic")
+
+    target = tmp_path / "tcc" / "data" / "raw" / "sentinel2" / file_name
+    io.relocate_exported_file(file_name, "tcc", target)
+
+    assert not staging.exists()
+    assert target.read_bytes() == b"mosaic"
+
+
+def test_path_exists_local(tmp_path, monkeypatch) -> None:
+    """No modo local, path_exists reflete a existência do arquivo no sistema."""
+    monkeypatch.setattr(io, "detect_platform", lambda: "local")
+    target = tmp_path / "tcc" / "data" / "interim" / "mapbiomas" / "mask.tif"
+    target.parent.mkdir(parents=True)
+
+    assert not io.path_exists(target)
+    target.write_bytes(b"mask")
+    assert io.path_exists(target)
+
+
+def test_persist_bytes_local(tmp_path, monkeypatch) -> None:
+    """No modo local, persist_bytes escreve os bytes no caminho informado."""
+    monkeypatch.setattr(io, "detect_platform", lambda: "local")
+    target = tmp_path / "tcc" / "artifacts" / "figures" / "preview.png"
+    io.persist_bytes(target, b"\x89PNG")
+    assert target.read_bytes() == b"\x89PNG"
+
+
+def test_persist_file_local(tmp_path, monkeypatch) -> None:
+    """No modo local, persist_file copia o arquivo para o caminho canônico."""
+    monkeypatch.setattr(io, "detect_platform", lambda: "local")
+    source = tmp_path / "composite.tif"
+    source.write_bytes(b"composite")
+    target = tmp_path / "tcc" / "data" / "processed" / "composites" / "composite.tif"
+    io.persist_file(source, target)
+    assert target.read_bytes() == b"composite"
+
+
+def test_persist_file_local_same_path_noop(tmp_path, monkeypatch) -> None:
+    """No modo local, persist_file no próprio caminho é um no-op (sem duplicação)."""
+    monkeypatch.setattr(io, "detect_platform", lambda: "local")
+    path = tmp_path / "composite.tif"
+    path.write_bytes(b"composite")
+    io.persist_file(path, path)
+    assert path.read_bytes() == b"composite"
+
+
+def test_ensure_local_copy_returns_path_on_local(tmp_path, monkeypatch) -> None:
+    """No modo local, ensure_local_copy deve retornar o próprio caminho."""
+    monkeypatch.setattr(io, "detect_platform", lambda: "local")
+    path = tmp_path / "mask.tif"
+    assert io.ensure_local_copy(path) == path

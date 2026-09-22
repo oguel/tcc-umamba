@@ -1,0 +1,50 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "opencode/deepseek-v4-flash",
+  "autoupdate": true,
+  "mcp": {
+    "github": {
+      "type": "remote",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "enabled": true,
+      "oauth": false,
+      "headers": {
+        "Authorization": "Bearer {env:GITHUB_PAT}"
+      }
+    },
+    "context7": {
+      "type": "remote",
+      "url": "https://mcp.context7.com/mcp",
+      "headers": {
+        "CONTEXT7_API_KEY": "{env:CONTEXT7_API_KEY}"
+      },
+      "enabled": true
+    },
+    "gh_grep": {
+      "type": "remote",
+      "url": "https://mcp.grep.app"
+    },
+    "sequential-thinking": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "@modelcontextprotocol/server-sequential-thinking"
+      ]
+    },
+    "hf-mcp-server": {
+      "type": "remote",
+      "url": "https://huggingface.co/mcp?login",
+      "enabled": true
+    },
+    "drive": {
+      "type": "remote",
+      "url": "https://drivemcp.googleapis.com/mcp/v1",
+      "enabled": true,
+      "oauth": {
+        "clientId": "{env:GOOGLE_DRIVE_CLIENT_ID}",
+        "clientSecret": "{env:GOOGLE_DRIVE_CLIENT_SECRET}"
+      }
+    }
+  }
+}
