@@ -85,6 +85,7 @@ training:
   partial_epochs: 10
   umamba_partial_epochs: 3
   batch_size: 2
+  umamba_batch_size: 1
   optimizer: "adamw"
 
 reproducibility:
