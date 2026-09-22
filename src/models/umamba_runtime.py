@@ -61,9 +61,14 @@ def _pip_install(args: list[str], env: dict[str, str] | None = None) -> None:
 def _ensure_python_dependencies() -> None:
     """Instala dependências leves usadas pelo arquivo oficial da arquitetura."""
     try:
-        import dynamic_network_architectures  # noqa: F401
-    except ImportError:
+        from importlib.metadata import version
+        installed_dna = version("dynamic-network-architectures")
+    except Exception:
+        installed_dna = None
+
+    if installed_dna != DNA_VERSION:
         _pip_install([f"dynamic-network-architectures=={DNA_VERSION}"])
+        importlib.invalidate_caches()
 
     for package, module in (
         ("einops", "einops"),
