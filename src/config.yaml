@@ -77,10 +77,13 @@ model:
   input_channels_experimental: 3
   input_channels_sentinel2: 4
   output_channels: 1
+  umamba_features: [16, 32, 64, 128]
 
 training:
   lr: 1.0e-4
   epochs: 100
+  partial_epochs: 10
+  umamba_partial_epochs: 3
   batch_size: 2
   optimizer: "adamw"
 
