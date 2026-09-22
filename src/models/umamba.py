@@ -1,25 +1,41 @@
-"""Integração com a implementação oficial U-Mamba.
-
-Este módulo não reimplementa U-Mamba. Ele constrói a classe UMambaEnc_2d do
-repositório oficial bowang-lab/U-Mamba quando as dependências estão instaladas.
-"""
+"""Adaptador do TCC para a implementação oficial U-Mamba."""
 
 from __future__ import annotations
 
+import importlib
 from typing import Sequence
 
 from torch import nn
 
-
 OFFICIAL_REPOSITORY = "https://github.com/bowang-lab/U-Mamba"
 
 
+def _resolve_umamba_class():
+    """Resolve UMambaEnc preparada no runtime; mantém fallback nnU-Net."""
+    try:
+        module = importlib.import_module("umamba_official_standalone")
+        return module.UMambaEnc
+    except (ImportError, AttributeError):
+        pass
+
+    try:
+        from nnunetv2.nets.UMambaEnc_2d import UMambaEnc
+
+        return UMambaEnc
+    except ImportError as exc:
+        raise RuntimeError(
+            "U-Mamba ainda não foi preparada neste runtime. "
+            "Execute ensure_umamba_runtime() de src.models.umamba_runtime."
+        ) from exc
+
+
 def umamba_available() -> bool:
-    """Verifica se a implementação oficial e mamba_ssm estão importáveis."""
+    """Verifica se a classe U-Mamba e mamba_ssm estão funcionais/importáveis."""
     try:
         import mamba_ssm  # noqa: F401
-        from nnunetv2.nets.UMambaEnc_2d import UMambaEnc  # noqa: F401
-    except ImportError:
+
+        _resolve_umamba_class()
+    except (ImportError, RuntimeError):
         return False
     return True
 
@@ -28,20 +44,10 @@ def build_official_umamba_enc_2d(
     input_channels: int = 3,
     num_classes: int = 1,
     input_size: tuple[int, int] = (256, 256),
-    features_per_stage: Sequence[int] = (32, 64, 128, 256),
+    features_per_stage: Sequence[int] = (16, 32, 64, 128),
 ) -> nn.Module:
-    """Constrói U-Mamba Encoder 2D diretamente da classe oficial.
-
-    O construtor evita depender do PlansManager do nnU-Net para o smoke test,
-    preservando a arquitetura UMambaEnc_2d publicada pelos autores.
-    """
-    try:
-        from nnunetv2.nets.UMambaEnc_2d import UMambaEnc
-    except ImportError as exc:
-        raise RuntimeError(
-            "U-Mamba oficial não está instalada. Execute primeiro o notebook "
-            "11_umamba_environment.ipynb em um ambiente compatível."
-        ) from exc
+    """Constrói diretamente a arquitetura oficial UMambaEnc 2D."""
+    UMambaEnc = _resolve_umamba_class()
 
     features = [int(value) for value in features_per_stage]
     n_stages = len(features)
