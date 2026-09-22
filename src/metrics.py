@@ -27,8 +27,10 @@ class BinaryConfusion:
         return {"tp": self.tp, "fp": self.fp, "tn": self.tn, "fn": self.fn}
 
 
-def _safe_div(numerator: float, denominator: float, eps: float = 1e-8) -> float:
-    return float(numerator / (denominator + eps))
+def _safe_div(numerator: float, denominator: float) -> float:
+    if denominator == 0:
+        return 0.0
+    return float(numerator / denominator)
 
 
 def metrics_from_confusion(confusion: BinaryConfusion) -> dict[str, float]:
