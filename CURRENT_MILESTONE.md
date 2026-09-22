@@ -86,3 +86,18 @@ Fora do escopo atual:
 - PyTorch Mobile;
 - sistema de abstention;
 - pipeline de classificação RoCoLe/BraCoL.
+
+
+## Runtime U-Mamba atualizado
+
+O notebook 11 foi revisado após o primeiro diagnóstico em CPU. A preparação atual:
+
+- exige GPU CUDA ativa no Colab;
+- usa o PyTorch CUDA já fornecido pelo runtime atual;
+- instala `mamba-ssm` com backend CUDA usando `--no-build-isolation`;
+- fixa `dynamic-network-architectures==0.3.1`;
+- fixa a arquitetura oficial U-Mamba no commit `28459e33ca03769800dd35e23c6e62491d1925b5`;
+- prepara apenas `UMambaEnc_2d` para o experimento, removendo do runtime os imports/helpers de planejamento nnU-Net que não são necessários para instanciar a rede diretamente;
+- grava `artifacts/runs/umamba_environment.json` somente quando o smoke test passa.
+
+O notebook 12 também prepara esse ambiente automaticamente caso seja aberto em outra sessão Colab.
