@@ -5,7 +5,7 @@ project:
 aoi:
   region_code: "310044"  # Região Geográfica Imediata de Guaxupé (IBGE)
   vector_source: "ibge_mesh"
-  mesh_path: "data/external/ibge/mg_rg_immediatas_2025/mg_rg_immediatas_2025.shp"
+  mesh_path: "data/external/ibge/mg_rg_immediatas_2025/mg_rg_imediatas_2025.shp"
 
 data:
   collection: "COPERNICUS/S2_SR_HARMONIZED"
@@ -54,7 +54,7 @@ storage:
     data_processed_patches_images: "data/processed/patches/images"
     data_processed_patches_masks: "data/processed/patches/masks"
     data_external: "data/external"
-    data_embrapa: "data/embrapa"
+    data_embrapa: "imagens"  # Dataset experimental já existente em MyDrive/tcc/imagens
     models: "models"
     models_unet: "models/unet"
     models_umamba: "models/umamba"
