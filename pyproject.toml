@@ -1,7 +1,7 @@
 [project]
-name = "tcc"
+name = "tcc-umamba"
 version = "0.1.0"
-description = "Segmentação semântica de lavouras cafeeiras: análise comparativa U-Net (CNN) vs SegFormer (ViT)"
+description = "Segmentação semântica de lavouras cafeeiras com U-Net baseline e arquitetura híbrida U-Mamba"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
@@ -18,7 +18,6 @@ dependencies = [
     "earthengine-api",
     "geopandas",
     "huggingface-hub",
-    "transformers",
     "torch",
     "torchvision",
     "google-api-python-client",
