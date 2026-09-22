@@ -67,3 +67,22 @@ O objetivo deste marco NÃO é concluir o TCC. O objetivo é obter um resultado 
 - redação final e formatação ABNT.
 
 Essas etapas serão retomadas quando as novas imagens e a nova validação estiverem disponíveis.
+
+
+## Notebook de referência recebido
+
+Um notebook externo de classificação de folhas de café com Vision Transformer foi revisado como referência metodológica. Não deve ser copiado como arquitetura do TCC, porque trata de classificação e não de segmentação semântica.
+
+Ideias úteis para incorporar quando fizer sentido:
+- matriz de confusão visual;
+- benchmark de latência de inferência com warm-up e sincronização CUDA;
+- early stopping em treinamentos longos;
+- múltiplas seeds com média e desvio-padrão;
+- busca de hiperparâmetros com Optuna na fase definitiva.
+
+Fora do escopo atual:
+- Vision Transformer como modelo principal;
+- Attention Rollout;
+- PyTorch Mobile;
+- sistema de abstention;
+- pipeline de classificação RoCoLe/BraCoL.
