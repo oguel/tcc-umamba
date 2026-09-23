@@ -3,7 +3,7 @@
 O Colab atual pode fornecer PyTorch mais novo que a matriz de wheels CUDA do
 mamba-ssm. Para evitar compilação local longa do selective_scan_cuda, este
 módulo fixa um stack com wheel pré-compilada:
-- PyTorch 2.10.0 + CUDA 12.8
+- PyTorch 2.10.0 + CUDA 12.6
 - mamba-ssm 2.3.2.post1, wheel cu12 / torch2.10
 - dynamic-network-architectures 0.3.1
 
@@ -31,10 +31,10 @@ OFFICIAL_ARCH_URL = (
 )
 
 TORCH_VERSION = "2.10.0"
-TORCH_LOCAL_PREFIX = "2.10.0+cu128"
+TORCH_LOCAL_PREFIX = "2.10.0+cu126"
 TORCHVISION_VERSION = "0.25.0"
-TORCHVISION_LOCAL_PREFIX = "0.25.0+cu128"
-TORCH_INDEX_URL = "https://download.pytorch.org/whl/cu128"
+TORCHVISION_LOCAL_PREFIX = "0.25.0+cu126"
+TORCH_INDEX_URL = "https://download.pytorch.org/whl/cu126"
 MAMBA_SSM_VERSION = "2.3.2.post1"
 DNA_VERSION = "0.3.1"
 
@@ -93,7 +93,7 @@ def install_prebuilt_colab_stack() -> bool:
 
     if torch_changed:
         print(
-            f"PyTorch atual: {torch_before}. Instalando torch=={TORCH_VERSION} com CUDA 12.8 "
+            f"PyTorch atual: {torch_before}. Instalando torch=={TORCH_VERSION} com CUDA 12.6 "
             "para usar uma wheel Mamba pré-compilada.",
             flush=True,
         )
