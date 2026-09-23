@@ -34,13 +34,13 @@ def run_epoch(
             images = images.to(device, non_blocking=True)
             masks = masks.to(device, non_blocking=True)
 
-            if training:
+            if optimizer is not None:
                 optimizer.zero_grad(set_to_none=True)
 
             logits = model(images)
             loss = criterion(logits, masks)
 
-            if training:
+            if optimizer is not None:
                 loss.backward()
                 optimizer.step()
 
