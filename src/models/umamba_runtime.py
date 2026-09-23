@@ -50,10 +50,16 @@ def _installed_version(package: str) -> str | None:
         return None
 
 
-def _pip_install(args: list[str]) -> None:
+def _pip_install(args: list[str], timeout_seconds: int = 1200) -> None:
     command = [sys.executable, "-m", "pip", "install", *args]
     print("$", " ".join(command), flush=True)
-    subprocess.run(command, check=True)
+    try:
+        subprocess.run(command, check=True, timeout=timeout_seconds)
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(
+            f"Instalação excedeu {timeout_seconds // 60} minutos e foi interrompida: "
+            f"{' '.join(command)}"
+        ) from exc
 
 
 def _mamba_wheel_url() -> str:
