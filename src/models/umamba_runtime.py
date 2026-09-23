@@ -31,7 +31,9 @@ OFFICIAL_ARCH_URL = (
 )
 
 TORCH_VERSION = "2.10.0"
+TORCH_LOCAL_PREFIX = "2.10.0+cu128"
 TORCHVISION_VERSION = "0.25.0"
+TORCHVISION_LOCAL_PREFIX = "0.25.0+cu128"
 TORCH_INDEX_URL = "https://download.pytorch.org/whl/cu128"
 MAMBA_SSM_VERSION = "2.3.2.post1"
 DNA_VERSION = "0.3.1"
@@ -78,7 +80,7 @@ def _mamba_wheel_url() -> str:
 def stack_needs_restart() -> bool:
     """Indica se o PyTorch instalado precisa ser trocado antes de importar torch."""
     installed = _installed_version("torch")
-    return installed is None or not installed.startswith(TORCH_VERSION)
+    return installed is None or not installed.startswith(TORCH_LOCAL_PREFIX)
 
 
 def install_prebuilt_colab_stack() -> bool:
@@ -87,7 +89,7 @@ def install_prebuilt_colab_stack() -> bool:
     Retorna True quando o PyTorch foi alterado e o kernel deve ser reiniciado.
     """
     torch_before = _installed_version("torch")
-    torch_changed = torch_before is None or not torch_before.startswith(TORCH_VERSION)
+    torch_changed = torch_before is None or not torch_before.startswith(TORCH_LOCAL_PREFIX)
 
     if torch_changed:
         print(
@@ -104,7 +106,7 @@ def install_prebuilt_colab_stack() -> bool:
     else:
         print(f"PyTorch compatível já instalado: {torch_before}", flush=True)
         torchvision_before = _installed_version("torchvision")
-        if torchvision_before is None or not torchvision_before.startswith(TORCHVISION_VERSION):
+        if torchvision_before is None or not torchvision_before.startswith(TORCHVISION_LOCAL_PREFIX):
             _pip_install([
                 f"torchvision=={TORCHVISION_VERSION}",
                 "--index-url",
@@ -119,7 +121,11 @@ def install_prebuilt_colab_stack() -> bool:
             _pip_install([package])
 
     mamba_before = _installed_version("mamba-ssm")
-    mamba_ok = mamba_before is not None and mamba_before.startswith(MAMBA_SSM_VERSION)
+    mamba_ok = (
+        mamba_before is not None
+        and mamba_before.startswith(MAMBA_SSM_VERSION)
+        and "cu12torch2.10cxx11abitrue" in mamba_before.lower()
+    )
     if not mamba_ok:
         wheel_url = _mamba_wheel_url()
         print(
@@ -214,9 +220,9 @@ def ensure_umamba_runtime() -> dict[str, str]:
 
     require_cuda()
 
-    if not torch.__version__.startswith(TORCH_VERSION):
+    if not torch.__version__.startswith(TORCH_LOCAL_PREFIX):
         raise RuntimeError(
-            f"PyTorch carregado é {torch.__version__}, mas o stack requer {TORCH_VERSION}. "
+            f"PyTorch carregado é {torch.__version__}, mas o stack requer {TORCH_LOCAL_PREFIX}. "
             "Execute install_prebuilt_colab_stack() e reinicie o runtime."
         )
 
@@ -228,7 +234,11 @@ def ensure_umamba_runtime() -> dict[str, str]:
         )
 
     mamba_version = _installed_version("mamba-ssm")
-    if mamba_version is None or not mamba_version.startswith(MAMBA_SSM_VERSION):
+    if (
+        mamba_version is None
+        or not mamba_version.startswith(MAMBA_SSM_VERSION)
+        or "cu12torch2.10cxx11abitrue" not in mamba_version.lower()
+    ):
         raise RuntimeError(
             "mamba-ssm pré-compilado ainda não está instalado. "
             "Execute install_prebuilt_colab_stack()."
