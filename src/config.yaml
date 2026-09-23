@@ -5,7 +5,7 @@ project:
 aoi:
   region_code: "310044"  # Região Geográfica Imediata de Guaxupé (IBGE)
   vector_source: "ibge_mesh"
-  mesh_path: "data/external/ibge/mg_rg_immediatas_2025/mg_rg_imediatas_2025.shp"
+  mesh_path: "data/external/ibge/mg_rg_immediatas_2025/mg_rg_immediatas_2025.shp"
 
 data:
   collection: "COPERNICUS/S2_SR_HARMONIZED"
