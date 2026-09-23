@@ -13,7 +13,7 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - name: Install dependencies (when pyproject.toml exists)
         if: hashFiles('pyproject.toml') != ''
-        run: uv sync --locked
+        run: uv sync
       - name: Ruff lint (src/tests)
         if: hashFiles('pyproject.toml') != ''
         run: uv run ruff check src tests
