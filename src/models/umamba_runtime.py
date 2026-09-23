@@ -105,7 +105,7 @@ def install_prebuilt_colab_stack() -> bool:
     if _installed_version("dynamic-network-architectures") != DNA_VERSION:
         _pip_install([f"dynamic-network-architectures=={DNA_VERSION}"])
 
-    for package in ("einops", "ninja", "packaging"):
+    for package in ("einops", "ninja", "packaging", "transformers", "huggingface-hub"):
         if _installed_version(package) is None:
             _pip_install([package])
 
@@ -118,7 +118,7 @@ def install_prebuilt_colab_stack() -> bool:
             "não haverá compilação local do selective_scan_cuda.",
             flush=True,
         )
-        _pip_install([wheel_url])
+        _pip_install(["--no-deps", wheel_url])
     else:
         print(f"mamba-ssm já instalado: {mamba_before}", flush=True)
 
@@ -211,6 +211,13 @@ def ensure_umamba_runtime() -> dict[str, str]:
             "Execute install_prebuilt_colab_stack() e reinicie o runtime."
         )
 
+    abi_enabled = bool(torch._C._GLIBCXX_USE_CXX11_ABI)
+    if not abi_enabled:
+        raise RuntimeError(
+            "O PyTorch carregado usa CXX11 ABI=False, mas a wheel Mamba selecionada "
+            "para torch 2.10 usa ABI=True."
+        )
+
     mamba_version = _installed_version("mamba-ssm")
     if mamba_version is None or not mamba_version.startswith(MAMBA_SSM_VERSION):
         raise RuntimeError(
@@ -225,6 +232,7 @@ def ensure_umamba_runtime() -> dict[str, str]:
         "python": sys.version.split()[0],
         "torch": torch.__version__,
         "torch_cuda": str(torch.version.cuda),
+        "torch_cxx11_abi": abi_enabled,
         "gpu": torch.cuda.get_device_name(0),
         "mamba_ssm": mamba_version or "unknown",
         "umamba_commit": OFFICIAL_UMAMBA_COMMIT,
