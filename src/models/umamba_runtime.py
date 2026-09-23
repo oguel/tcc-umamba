@@ -103,6 +103,13 @@ def install_prebuilt_colab_stack() -> bool:
         ])
     else:
         print(f"PyTorch compatível já instalado: {torch_before}", flush=True)
+        torchvision_before = _installed_version("torchvision")
+        if torchvision_before is None or not torchvision_before.startswith(TORCHVISION_VERSION):
+            _pip_install([
+                f"torchvision=={TORCHVISION_VERSION}",
+                "--index-url",
+                TORCH_INDEX_URL,
+            ])
 
     if _installed_version("dynamic-network-architectures") != DNA_VERSION:
         _pip_install([f"dynamic-network-architectures=={DNA_VERSION}"])
