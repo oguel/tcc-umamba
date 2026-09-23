@@ -60,7 +60,9 @@ class CoffeeSegmentationDataset(Dataset):
         mask = mask.resize(size, resample=Image.Resampling.NEAREST)
         return image, mask
 
-    def _augment_pair(\n        self, image: Image.Image, mask: Image.Image\n    ) -> tuple[Image.Image, Image.Image]:
+    def _augment_pair(
+        self, image: Image.Image, mask: Image.Image
+    ) -> tuple[Image.Image, Image.Image]:
         if random.random() < 0.5:
             image = image.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
             mask = mask.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
