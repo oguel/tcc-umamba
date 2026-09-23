@@ -5,9 +5,18 @@ from __future__ import annotations
 import importlib
 from typing import Sequence
 
+import torch
 from torch import nn
 
 OFFICIAL_REPOSITORY = "https://github.com/bowang-lab/U-Mamba"
+
+
+def _init_weights_he(module: nn.Module, negative_slope: float = 1e-2) -> None:
+    """Replica a inicialização He aplicada pelo helper oficial do U-Mamba."""
+    if isinstance(module, (nn.Conv2d, nn.Conv3d, nn.ConvTranspose2d, nn.ConvTranspose3d)):
+        nn.init.kaiming_normal_(module.weight, a=negative_slope)
+        if module.bias is not None:
+            nn.init.constant_(module.bias, 0)
 
 
 def _resolve_umamba_class():
@@ -54,7 +63,7 @@ def build_official_umamba_enc_2d(
     if n_stages < 3:
         raise ValueError("U-Mamba requer ao menos três estágios para este projeto.")
 
-    return UMambaEnc(
+    model = UMambaEnc(
         input_size=input_size,
         input_channels=int(input_channels),
         n_stages=n_stages,
@@ -75,3 +84,5 @@ def build_official_umamba_enc_2d(
         deep_supervision=False,
         stem_channels=None,
     )
+    model.apply(_init_weights_he)
+    return model
