@@ -15,13 +15,15 @@ from __future__ import annotations
 
 import importlib
 import importlib.util
-from importlib.metadata import PackageNotFoundError, version
+from importlib.metadata import PackageNotFoundError, distribution, version
+import json
 import os
 from pathlib import Path
 import platform
 import subprocess
 import sys
 import urllib.request
+from urllib.parse import unquote
 
 OFFICIAL_UMAMBA_REPOSITORY = "https://github.com/bowang-lab/U-Mamba"
 OFFICIAL_UMAMBA_COMMIT = "28459e33ca03769800dd35e23c6e62491d1925b5"
@@ -64,7 +66,7 @@ def _pip_install(args: list[str], timeout_seconds: int = 1200) -> None:
         ) from exc
 
 
-def _mamba_wheel_url() -> str:
+def _mamba_wheel_filename() -> str:
     py_tag = f"cp{sys.version_info.major}{sys.version_info.minor}"
     if py_tag not in {"cp310", "cp311", "cp312", "cp313"}:
         raise RuntimeError(
@@ -74,15 +76,45 @@ def _mamba_wheel_url() -> str:
     if platform.machine() != "x86_64":
         raise RuntimeError(f"Arquitetura não suportada por este setup: {platform.machine()}")
 
-    filename = (
+    return (
         f"mamba_ssm-{MAMBA_SSM_VERSION}+cu12torch2.10cxx11abiTRUE-"
         f"{py_tag}-{py_tag}-linux_x86_64.whl"
     )
-    encoded = filename.replace("+", "%2B")
+
+
+def _mamba_wheel_url() -> str:
+    encoded = _mamba_wheel_filename().replace("+", "%2B")
     return (
         "https://github.com/state-spaces/mamba/releases/download/"
         f"v{MAMBA_SSM_VERSION}/{encoded}"
     )
+
+
+def _mamba_install_is_target() -> bool:
+    """Confirma que mamba-ssm veio da wheel binária selecionada.
+
+    O campo Version do pacote não preserva necessariamente o sufixo local do
+    nome do arquivo da wheel. Por isso a validação usa PEP 610 direct_url.json.
+    """
+    installed = _installed_version("mamba-ssm")
+    if installed is None or not installed.startswith(MAMBA_SSM_VERSION):
+        return False
+
+    try:
+        dist = distribution("mamba-ssm")
+        direct_url_raw = dist.read_text("direct_url.json")
+    except PackageNotFoundError:
+        return False
+
+    if not direct_url_raw:
+        return False
+
+    try:
+        direct_url = json.loads(direct_url_raw).get("url", "")
+    except json.JSONDecodeError:
+        return False
+
+    return _mamba_wheel_filename() in unquote(direct_url)
 
 
 def stack_needs_restart() -> bool:
@@ -137,19 +169,14 @@ def install_prebuilt_colab_stack() -> bool:
             _pip_install([package])
 
     mamba_before = _installed_version("mamba-ssm")
-    mamba_ok = (
-        mamba_before is not None
-        and mamba_before.startswith(MAMBA_SSM_VERSION)
-        and "cu12torch2.10cxx11abitrue" in mamba_before.lower()
-    )
-    if not mamba_ok:
+    if not _mamba_install_is_target():
         wheel_url = _mamba_wheel_url()
         print(
             "Instalando wheel CUDA pré-compilada do mamba-ssm; "
             "não haverá compilação local do selective_scan_cuda.",
             flush=True,
         )
-        _pip_install(["--no-deps", wheel_url])
+        _pip_install(["--force-reinstall", "--no-deps", wheel_url])
     else:
         print(f"mamba-ssm já instalado: {mamba_before}", flush=True)
 
@@ -250,16 +277,15 @@ def ensure_umamba_runtime() -> dict[str, str | bool]:
         )
 
     mamba_version = _installed_version("mamba-ssm")
-    if (
-        mamba_version is None
-        or not mamba_version.startswith(MAMBA_SSM_VERSION)
-        or "cu12torch2.10cxx11abitrue" not in mamba_version.lower()
-    ):
+    if mamba_version is None or not mamba_version.startswith(MAMBA_SSM_VERSION):
         raise RuntimeError(
-            "mamba-ssm pré-compilado ainda não está instalado. "
+            "mamba-ssm ainda não está instalado. "
             "Execute install_prebuilt_colab_stack()."
         )
 
+    # A prova real de compatibilidade é carregar e executar o kernel CUDA.
+    # Não dependemos do sufixo da versão retornado por importlib.metadata,
+    # porque wheels publicadas podem expor somente a versão-base no METADATA.
     _mamba_forward_sanity()
     architecture_path = prepare_official_architecture()
 
