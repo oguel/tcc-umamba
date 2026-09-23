@@ -230,7 +230,7 @@ def prepare_official_architecture() -> Path:
     return STANDALONE_FILE
 
 
-def ensure_umamba_runtime() -> dict[str, str]:
+def ensure_umamba_runtime() -> dict[str, str | bool]:
     """Valida GPU, Mamba e arquitetura oficial após o stack binário estar instalado."""
     import torch
 
