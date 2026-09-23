@@ -110,7 +110,8 @@ def install_prebuilt_colab_stack() -> bool:
             _pip_install([package])
 
     mamba_before = _installed_version("mamba-ssm")
-    if mamba_before != MAMBA_SSM_VERSION:
+    mamba_ok = mamba_before is not None and mamba_before.startswith(MAMBA_SSM_VERSION)
+    if not mamba_ok:
         wheel_url = _mamba_wheel_url()
         print(
             "Instalando wheel CUDA pré-compilada do mamba-ssm; "
@@ -210,7 +211,8 @@ def ensure_umamba_runtime() -> dict[str, str]:
             "Execute install_prebuilt_colab_stack() e reinicie o runtime."
         )
 
-    if _installed_version("mamba-ssm") != MAMBA_SSM_VERSION:
+    mamba_version = _installed_version("mamba-ssm")
+    if mamba_version is None or not mamba_version.startswith(MAMBA_SSM_VERSION):
         raise RuntimeError(
             "mamba-ssm pré-compilado ainda não está instalado. "
             "Execute install_prebuilt_colab_stack()."
@@ -224,7 +226,7 @@ def ensure_umamba_runtime() -> dict[str, str]:
         "torch": torch.__version__,
         "torch_cuda": str(torch.version.cuda),
         "gpu": torch.cuda.get_device_name(0),
-        "mamba_ssm": _installed_version("mamba-ssm") or "unknown",
+        "mamba_ssm": mamba_version or "unknown",
         "umamba_commit": OFFICIAL_UMAMBA_COMMIT,
         "architecture_file": str(architecture_path),
     }
