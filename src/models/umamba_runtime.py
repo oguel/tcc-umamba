@@ -34,6 +34,8 @@ TORCH_VERSION = "2.10.0"
 TORCH_LOCAL_PREFIX = "2.10.0+cu126"
 TORCHVISION_VERSION = "0.25.0"
 TORCHVISION_LOCAL_PREFIX = "0.25.0+cu126"
+TORCHAUDIO_VERSION = "2.10.0"
+TORCHAUDIO_LOCAL_PREFIX = "2.10.0+cu126"
 TORCH_INDEX_URL = "https://download.pytorch.org/whl/cu126"
 MAMBA_SSM_VERSION = "2.3.2.post1"
 DNA_VERSION = "0.3.1"
@@ -106,15 +108,23 @@ def install_prebuilt_colab_stack() -> bool:
         _pip_install([
             f"torch=={TORCH_VERSION}",
             f"torchvision=={TORCHVISION_VERSION}",
+            f"torchaudio=={TORCHAUDIO_VERSION}",
             "--index-url",
             TORCH_INDEX_URL,
         ])
     else:
         print(f"PyTorch compatível já instalado: {torch_before}", flush=True)
         torchvision_before = _installed_version("torchvision")
-        if torchvision_before is None or not torchvision_before.startswith(TORCHVISION_LOCAL_PREFIX):
+        torchaudio_before = _installed_version("torchaudio")
+        if (
+            torchvision_before is None
+            or not torchvision_before.startswith(TORCHVISION_LOCAL_PREFIX)
+            or torchaudio_before is None
+            or not torchaudio_before.startswith(TORCHAUDIO_LOCAL_PREFIX)
+        ):
             _pip_install([
                 f"torchvision=={TORCHVISION_VERSION}",
+                f"torchaudio=={TORCHAUDIO_VERSION}",
                 "--index-url",
                 TORCH_INDEX_URL,
             ])
