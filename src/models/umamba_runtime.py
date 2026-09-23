@@ -31,6 +31,7 @@ OFFICIAL_ARCH_URL = (
 )
 
 TORCH_VERSION = "2.10.0"
+TORCHVISION_VERSION = "0.25.0"
 TORCH_INDEX_URL = "https://download.pytorch.org/whl/cu128"
 MAMBA_SSM_VERSION = "2.3.2.post1"
 DNA_VERSION = "0.3.1"
@@ -96,6 +97,7 @@ def install_prebuilt_colab_stack() -> bool:
         )
         _pip_install([
             f"torch=={TORCH_VERSION}",
+            f"torchvision=={TORCHVISION_VERSION}",
             "--index-url",
             TORCH_INDEX_URL,
         ])
