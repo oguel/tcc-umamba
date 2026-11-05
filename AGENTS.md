@@ -9,7 +9,7 @@
 - **Três Pontas** está fora da RGI 310044 (é 310046). Preservar seus dados separadamente para possível teste externo.
 
 ## Contrato de dados
-- Patches 512×512, stride 300, TIFF georreferenciado.
+- Variante oficial: `Patches_P512_S300_NN` (512×512, stride 300, TIFF).\n- Ambas as partes `Municipios-...-001` e `-002` devem estar presentes: imagem e máscara podem estar em partes diferentes. Associe globalmente por município/ano e filename.\n- Preserve `Fora0_M0` como variante alternativa; nela a máscara externa pode virar classe 0, enquanto em `NN` é 255. Não misture variantes.
 - Pares devem ser associados por município/ano, variante e nome do patch; duplicatas idênticas devem ser removidas.
 - Máscara oficial `0=Não-Café, 1=Café, 255=Ignorar`.
 - Excluir 255 das perdas, métricas e estatísticas supervisionadas; nunca binarizar o lote por `mask > 127`.

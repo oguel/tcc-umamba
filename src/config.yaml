@@ -98,7 +98,7 @@ official_dataset:
   source_root_drive: "00_DADOS_OFICIAIS_RGI_GUAXUPE"
   municipality_archives_dir: "00_DADOS_OFICIAIS_RGI_GUAXUPE/Municipios"
   scene_archives_dir: "00_DADOS_OFICIAIS_RGI_GUAXUPE/Cenas"
-  patch_variant: "Patches_P512_S300_NN_Fora0_M0"
+  patch_variant: "Patches_P512_S300_NN"  # homologada em amostras; 285 pares nas partes 001+002
   patch_size: 512
   stride: 300
   mask_values:

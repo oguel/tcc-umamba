@@ -28,10 +28,10 @@ Armazenamento canônico: `MyDrive/tcc/00_DADOS_OFICIAIS_RGI_GUAXUPE/`
     Cenas-20261104T135255Z-1-003/
 ```
 
-Os nomes de pasta identificam partes do download; não as renomeie ou combine
+As partes 001/002 são complementares. Nunca tentar emparelhar imagem/máscara dentro de uma parte isolada. Os nomes de pasta identificam partes do download; não as renomeie ou combine
 automaticamente sem primeiro conferir duplicidades de patches e seu manifesto.
 
-O conjunto observado contém patches 512 × 512 com deslocamento de 300 pixels,
+**Variante oficial:** `Patches_P512_S300_NN`. A alternativa `Fora0_M0` altera pixels de borda (255 → 0) e não deve ser misturada. Os downloads 001 e 002 repartem imagens e máscaras de cada município: executar descoberta global na raiz que contenha AMBAS as partes.\n\nO conjunto observado contém patches 512 × 512 com deslocamento de 300 pixels,
 imagens GeoTIFF e máscaras EMATER com **0=não-café, 1=café,
 255=ignorar**. O antigo carregamento PNG com `mask > 127` **não pode ser
 aplicado**, pois transforma 255 em café e 1 em não-café.

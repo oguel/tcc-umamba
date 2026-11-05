@@ -16,7 +16,7 @@ inicial trabalha com UMA GPU; 2×T4 não equivale a 32 GB de VRAM unificada.
 3. A base tem duas pastas exportadas `Municipios-...` e três
    `Cenas-...`. Não reunir variantes de patch como se fossem diferentes
    amostras.
-4. Confirmar a origem das bandas e máscaras a partir dos metadados da cena.
+4. Confirmar a origem das bandas e máscaras a partir dos metadados da cena.\n   O script varre ambas as partes; não execute apontando apenas para uma.
 
 ## Ambiente de auditoria / baseline
 

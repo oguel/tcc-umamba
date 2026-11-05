@@ -23,7 +23,7 @@ MyDrive/tcc/
   secrets/            # nunca versionar credenciais
 ```
 
-O lote contém recortes georreferenciados **512×512** com `stride=300`, e máscaras com `0=não-café`, `1=café` e `255=ignorar`. Nunca usar no lote novo a conversão PNG antiga `(mask > 127)`.
+A variante oficial é `Patches_P512_S300_NN` (não `Fora0_M0`). As imagens e máscaras de um mesmo patch podem estar em downloads **001 e 002 distintos**; o leitor as associa pela identidade do patch, sem mover os originais.\n\nO lote contém recortes georreferenciados **512×512** com `stride=300`, e máscaras com `0=não-café`, `1=café` e `255=ignorar`. Nunca usar no lote novo a conversão PNG antiga `(mask > 127)`.
 
 As pastas disponíveis estão organizadas por município/ano **apenas para procedência dos dados**. O treinamento agrega os recortes válidos da RGI. **Três Pontas não integra a RGI de Guaxupé** e fica reservado para possível avaliação externa, não para treino/validação/teste principal.
 
