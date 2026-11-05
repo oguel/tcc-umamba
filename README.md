@@ -75,7 +75,7 @@ O script realiza uma atualização de uma U-Net compacta em CPU com raster sint�
 
 ## Estado atual
 
-O pipeline oficial está na branch principal `main`. Os scripts são independentes de plataforma e os caminhos de entrada/saída são configuráveis. **Não há resultados oficiais de treinamento com o novo conjunto confirmados ainda.**
+O pipeline está na branch principal `main`. Os scripts são independentes de plataforma e os caminhos de entrada/saída são configuráveis. A auditoria integral dos 206 pares de imagem/máscara da RGI foi feita em 05/11/2026, sem incompatibilidades detectadas nos formatos verificados. O holdout regional é **candidato**, com 142 treino, 20 validação, 20 teste fechado e 24 recortes excluídos por sobreposição. **Não há resultados oficiais de treinamento com o novo conjunto confirmados ainda.**
 
 ## Tecnologias
 
