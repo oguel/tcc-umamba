@@ -1,4 +1,5 @@
 """Métricas de segmentação para a classe Café; ignora pixels 255."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -14,8 +15,11 @@ class BinaryConfusion:
     fn: int = 0
 
     def update(
-        self, logits: torch.Tensor, targets: torch.Tensor,
-        threshold: float = 0.5, ignore_index: int = 255,
+        self,
+        logits: torch.Tensor,
+        targets: torch.Tensor,
+        threshold: float = 0.5,
+        ignore_index: int = 255,
     ) -> None:
         if logits.shape != targets.shape:
             raise ValueError("Logits e targets com dimensões diferentes.")
