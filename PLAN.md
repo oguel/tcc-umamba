@@ -18,14 +18,14 @@ separado para possível validação externa adicional.
 ## Fonte de verdade do experimento
 
 - Drive: `MyDrive/tcc/00_DADOS_OFICIAIS_RGI_GUAXUPE/Municipios` e `Cenas`.
-- Lote observado: seis conjuntos, 285 patches selecionados; 206 candidatos
+- Variante oficial: `Patches_P512_S300_NN` (mapeamento nominal completo de\n  imagens/máscaras nas partes 001 e 002); `Fora0_M0` preservada como alternativa.\n- Lote observado: seis conjuntos, 285 patches selecionados; 206 candidatos
   dentro da RGI, 79 de Três Pontas. A contagem deve ser revalidada integralmente.
 - Imagens: GeoTIFF de 10 bandas Sentinel-2, DN uint16, EPSG:32723,
   metadados de fonte/BOA_ADD_OFFSET, dimensão 512x512, stride 300.
 - Referência supervisionada: máscaras derivadas dos dados EMATER, valores
   0=não-café, 1=café, 255=ignorar. A variante Fora0_M0 também
   codifica pixels sem imagem como 0: o leitor marca estes pixels como 255.
-- Não misturar variantes alternativas do mesmo patch, anos e cenas de modo
+- Cada parte isolada tem imagens e máscaras desencontradas. O loader usa\n  união lógica de ambas e só depois valida pares. Nunca mover originais.\n- Não misturar variantes alternativas do mesmo patch, anos e cenas de modo
   indiscriminado. Não copiar dados de parceiros para repositórios públicos.
 - Históricos antigos em `02_HISTORICO_TESTES` NÃO entram nos resultados finais.
 
