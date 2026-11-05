@@ -5,6 +5,7 @@ python -m scripts.train_emater_rgi --root /kaggle/input/NOME --model unet --epoc
 python -m scripts.train_emater_rgi --root /kaggle/input/NOME --model umamba --epochs 20
 O comando U-Mamba exige instalação validada do runtime CUDA oficial ANTES.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -18,6 +19,7 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader, Subset
 
+from src.config import get_config
 from src.data.augmentation import RGIPatchViews
 from src.data.emater_dataset import EMATERRGIDataset, find_rgi_pairs
 from src.data.rgi_fingerprint import dataset_fingerprint
@@ -38,8 +40,11 @@ def build_model(kind: str, size: int) -> torch.nn.Module:
         return UNet(in_channels=4, out_channels=1)
     if kind == "umamba":
         from src.models.umamba import build_official_umamba_enc_2d
+
         return build_official_umamba_enc_2d(
-            input_channels=4, num_classes=1, input_size=(size, size),
+            input_channels=4,
+            num_classes=1,
+            input_size=(size, size),
         )
     raise ValueError(f"Modelo desconhecido: {kind}")
 
@@ -56,6 +61,10 @@ def train(
     train_views_per_image: int | None = None,
     num_workers: int = 2,
     evaluate_test: bool = False,
+    expected_fingerprint: str | None = None,
+    device_name: str = "auto",
+    pilot_train_per_municipality: int = 0,
+    pilot_val_limit: int = 0,
 ):
     if evaluate_test:
         raise ValueError(
@@ -70,12 +79,38 @@ def train(
 
     pairs = find_rgi_pairs(root)
     fingerprint = dataset_fingerprint(pairs)
+    if expected_fingerprint is None:
+        expected_fingerprint = get_config()["official_dataset"]["expected_rgi_fingerprint"]
+    if expected_fingerprint and fingerprint != expected_fingerprint:
+        raise ValueError("Fingerprint divergente; piloto cancelado antes de carregar pixels.")
     train_ids, val_ids, test_ids, purged_ids = make_holdouts(pairs)
+    full_train_count, full_val_count = len(train_ids), len(val_ids)
+    if pilot_train_per_municipality:
+        selected = []
+        for municipality in sorted({pairs[i].municipality for i in train_ids}):
+            selected.extend(
+                [i for i in train_ids if pairs[i].municipality == municipality][
+                    :pilot_train_per_municipality
+                ]
+            )
+        train_ids = selected
+    if pilot_val_limit:
+        val_ids = val_ids[:pilot_val_limit]
     dataset = EMATERRGIDataset(pairs)
     size = patch_size
     if train_views_per_image is None:
         train_views_per_image = 4 if size == 256 else 1
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device(
+        "cuda"
+        if device_name == "auto" and torch.cuda.is_available()
+        else "cpu"
+        if device_name == "auto"
+        else device_name
+    )
+    if device.type == "cuda" and not torch.cuda.is_available():
+        raise RuntimeError(
+            "CUDA solicitada, mas indisponível; não executar piloto em CPU silenciosamente."
+        )
     if kind == "umamba" and device.type != "cuda":
         raise RuntimeError("U-Mamba requer runtime CUDA compatível.")
 
@@ -115,6 +150,10 @@ def train(
         "split_method": "candidate_geographic_zones_epsg32723",
         "dataset_fingerprint": fingerprint,
         "split_approved": False,
+        "full_candidate_train_count": full_train_count,
+        "full_candidate_validation_count": full_val_count,
+        "pilot_train_per_municipality": pilot_train_per_municipality,
+        "pilot_val_limit": pilot_val_limit,
         "source_root": str(root),
         "patch_size": size,
         "augment_train_only": augment,
@@ -129,8 +168,14 @@ def train(
     )
     ckpt = run_dir / f"best_{kind}_rgi.pt"
     history = fit_model(
-        model, train_loader, val_loader, criterion, optimizer,
-        device, epochs=epochs, checkpoint_path=ckpt,
+        model,
+        train_loader,
+        val_loader,
+        criterion,
+        optimizer,
+        device,
+        epochs=epochs,
+        checkpoint_path=ckpt,
     )
     checkpoint = torch.load(ckpt, map_location=device, weights_only=True)
     model.load_state_dict(checkpoint["model_state_dict"])
@@ -183,27 +228,45 @@ def main():
     parser.add_argument("--batch-size", type=int, default=1)
     parser.add_argument("--patch-size", type=int, choices=(256, 512), default=512)
     parser.add_argument(
-        "--augment", action="store_true",
+        "--augment",
+        action="store_true",
         help="Apenas no treino: crops aleatorios, flips e rotacoes em 90 graus.",
     )
     parser.add_argument(
-        "--train-views-per-image", type=int, choices=(1, 2, 3, 4),
+        "--train-views-per-image",
+        type=int,
+        choices=(1, 2, 3, 4),
         help="Padrao: 4 views para 256; 1 para 512.",
     )
     parser.add_argument("--num-workers", type=int, default=2)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
+    parser.add_argument("--expected-fingerprint")
+    parser.add_argument("--pilot-train-per-municipality", type=int, default=0)
+    parser.add_argument("--pilot-val-limit", type=int, default=0)
     parser.add_argument("--output", type=Path, default=Path("artifacts/rgi_runs"))
     # Nao disponibilizar --evaluate-test aqui: evitar vazamento acidental.
     args = parser.parse_args()
     if args.epochs < 1 or args.batch_size < 1 or args.num_workers < 0:
         parser.error("epochs e batch-size devem ser >= 1; num-workers deve ser >= 0")
+    if args.pilot_train_per_municipality < 0 or args.pilot_val_limit < 0:
+        parser.error("Limites do piloto devem ser >= 0")
     train(
-        args.root, args.model, args.epochs, args.output, args.seed, args.batch_size,
+        args.root,
+        args.model,
+        args.epochs,
+        args.output,
+        args.seed,
+        args.batch_size,
         patch_size=args.patch_size,
         augment=args.augment,
         train_views_per_image=args.train_views_per_image,
         num_workers=args.num_workers,
         evaluate_test=False,
+        expected_fingerprint=args.expected_fingerprint,
+        device_name=args.device,
+        pilot_train_per_municipality=args.pilot_train_per_municipality,
+        pilot_val_limit=args.pilot_val_limit,
     )
 
 

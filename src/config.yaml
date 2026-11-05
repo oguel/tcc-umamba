@@ -99,6 +99,7 @@ official_dataset:
   municipality_archives_dir: "00_DADOS_OFICIAIS_RGI_GUAXUPE/Municipios"
   scene_archives_dir: "00_DADOS_OFICIAIS_RGI_GUAXUPE/Cenas"
   patch_variant: "Patches_P512_S300_NN"  # homologada em amostras; 285 pares nas partes 001+002
+  expected_rgi_fingerprint: "5a0f95d581f65ed1533caea509cdc04bc7d348b9ce36cf6d91181196328f58b0"
   patch_size: 512
   stride: 300
   mask_values:
@@ -117,6 +118,7 @@ official_dataset:
     test_center_epsg32723: [359250, 7657850]
     validation_center_epsg32723: [344690, 7620910]
     region_radius_m: 9000
+    buffer_m: 1000 # margem adicional entre envelopes; candidato, avaliar sensibilidade
     seed: 42
   execution: "portable" # mesmo codigo pode rodar local, Colab ou Kaggle com dependencias adequadas
   comparison_models: ["unet", "umamba"]

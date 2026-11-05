@@ -92,3 +92,23 @@ def test_offset_ausente_ou_invalido_bloqueia_treino(tmp_path):
     pair = _write_pair(tmp_path, offset="invalido")
     with pytest.raises(ValueError, match="BOA_ADD_OFFSET"):
         _ = EMATERRGIDataset([pair])[0]
+
+
+@pytest.mark.parametrize("offset", ["nan", "inf", "-inf"])
+def test_offset_nao_finito_bloqueia_loader(tmp_path, offset):
+    pair = _write_pair(tmp_path, offset=offset)
+    with pytest.raises(ValueError, match="BOA_ADD_OFFSET"):
+        _ = EMATERRGIDataset([pair])[0]
+
+
+def test_mask_validity_band_is_respected(tmp_path):
+    import rasterio
+
+    pair = _write_pair(tmp_path)
+    with rasterio.open(pair.mask, "r+") as mask:
+        validity = np.full((8, 8), 255, dtype=np.uint8)
+        validity[0, 4:] = 0
+        mask.write_mask(validity)
+    _, target = EMATERRGIDataset([pair])[0]
+    assert torch.all(target[:, 0, 4:] == 255)
+    assert torch.all(target[:, 1:, 4:] == 1)

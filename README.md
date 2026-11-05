@@ -75,6 +75,13 @@ O script realiza uma atualização de uma U-Net compacta em CPU com raster sint�
 
 ## Estado atual
 
+Continuação técnica de 05/11/2026: auditoria NN de 285 pares e dos 18 rasters
+municipais de origem, pilotos curtos da U-Net executados em CUDA local e
+preflight U-Mamba pendente de Linux compatível. A divisão com margem de 1km
+continua candidata, com 119/20/20 patches e 47 purgados; a representatividade
+espacial ainda precisa de revisão. Evidências, limitações e comandos estão em
+[docs/PILOTOS_CUDA_E_AUDITORIA.md](docs/PILOTOS_CUDA_E_AUDITORIA.md).
+
 O pipeline está na branch principal `main`. Os scripts são independentes de plataforma e os caminhos de entrada/saída são configuráveis. A auditoria integral dos 206 pares de imagem/máscara da RGI foi feita em 05/11/2026, sem incompatibilidades detectadas nos formatos verificados. O holdout regional é **candidato**, com 142 treino, 20 validação, 20 teste fechado e 24 recortes excluídos por sobreposição. **Não há resultados oficiais de treinamento com o novo conjunto confirmados ainda.**
 
 ## Tecnologias

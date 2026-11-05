@@ -67,6 +67,8 @@ def _pip_install(args: list[str], timeout_seconds: int = 1200) -> None:
 
 
 def _mamba_wheel_filename() -> str:
+    if platform.system() != "Linux":
+        raise RuntimeError("O stack Mamba fixado requer Linux x86_64; use Kaggle/Colab Linux.")
     py_tag = f"cp{sys.version_info.major}{sys.version_info.minor}"
     if py_tag not in {"cp310", "cp311", "cp312", "cp313"}:
         raise RuntimeError(
@@ -128,6 +130,8 @@ def install_prebuilt_colab_stack() -> bool:
 
     Retorna True quando o PyTorch foi alterado e o kernel deve ser reiniciado.
     """
+    # Rejeitar plataforma incompatível ANTES de modificar o ambiente.
+    _mamba_wheel_filename()
     torch_before = _installed_version("torch")
     torch_changed = torch_before is None or not torch_before.startswith(TORCH_LOCAL_PREFIX)
 
@@ -261,6 +265,7 @@ def ensure_umamba_runtime() -> dict[str, str | bool]:
     """Valida GPU, Mamba e arquitetura oficial após o stack binário estar instalado."""
     import torch
 
+    _mamba_wheel_filename()
     require_cuda()
 
     if not torch.__version__.startswith(TORCH_LOCAL_PREFIX):

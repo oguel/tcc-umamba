@@ -79,3 +79,23 @@ def test_falha_se_raster_ou_bounds_estiverem_incorretos():
     bounds[0] = (1, 2, 1, 3)
     with pytest.raises(ValueError, match="Bounds invalidos"):
         region_holdout_from_bounds(bounds, cities)
+
+
+def test_buffer_purges_nearby_nonoverlapping_patch():
+    bounds, cities = _dataset()
+    # Apenas 100m entre este patch e a borda oeste da zona de validação.
+    x, y = DEFAULT_VALIDATION_CENTER
+    bounds.append(_rect(x - 5220, y))
+    cities.append("city0")
+    old = region_holdout_from_bounds(bounds, cities, validation_radius_m=1000)
+    buffered = region_holdout_from_bounds(bounds, cities, validation_radius_m=1000, buffer_m=1000)
+    assert len(bounds) - 1 in old.train
+    assert len(bounds) - 1 in buffered.purged
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf")])
+def test_nonfinite_geometry_is_rejected(value):
+    bounds, cities = _dataset()
+    bounds[0] = (value, 0, 10, 10)
+    with pytest.raises(ValueError, match="Bounds invalidos"):
+        region_holdout_from_bounds(bounds, cities)

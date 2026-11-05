@@ -175,4 +175,4 @@ def drive_relative_path(path: Path) -> str:
     """Retorna o caminho relativo à raiz MyDrive (pasta de exportação no GEE)."""
     from src import io
 
-    return str(path.relative_to(io.mount_drive()))
+    return path.relative_to(io.mount_drive()).as_posix()

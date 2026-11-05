@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass
-from math import hypot
+from math import hypot, isfinite
 
 from src.data.emater_dataset import RasterPair
 
@@ -46,14 +46,27 @@ def region_holdout_from_bounds(
     min_train_per_municipality: int = 5,
     min_val: int = 15,
     min_test: int = 15,
+    buffer_m: float = 0.0,
 ) -> RegionalSplit:
     """Seleciona zonas de validacao/teste, e remove vizinhos do treinamento."""
     if not bounds or len(bounds) != len(municipalities):
         raise ValueError("Patches e municipios devem ter o mesmo tamanho nao-zero.")
+    if not all(
+        isfinite(v)
+        for v in (*test_center, *validation_center, test_radius_m, validation_radius_m, buffer_m)
+    ):
+        raise ValueError("Parâmetros espaciais devem ser finitos.")
+    if buffer_m < 0:
+        raise ValueError("Buffer espacial não pode ser negativo.")
     if test_radius_m <= 0 or validation_radius_m <= 0:
         raise ValueError("Raios de selecao espacial devem ser positivos.")
     for bbox in bounds:
-        if len(bbox) != 4 or bbox[0] >= bbox[2] or bbox[1] >= bbox[3]:
+        if (
+            len(bbox) != 4
+            or not all(isfinite(v) for v in bbox)
+            or bbox[0] >= bbox[2]
+            or bbox[1] >= bbox[3]
+        ):
             raise ValueError(f"Bounds invalidos: {bbox}")
 
     centers = [((b[0] + b[2]) / 2, (b[1] + b[3]) / 2) for b in bounds]
@@ -72,7 +85,14 @@ def region_holdout_from_bounds(
         raise ValueError("Validacao e teste compartilham patches.")
     if len(test) < min_test or len(validation) < min_val:
         raise ValueError(f"Validacao/teste muito pequenos: {len(validation)} / {len(test)}.")
-    if any(intersects(bounds[i], bounds[j]) for i in validation for j in test):
+
+    def conflicts(a: Bounds, b: Bounds) -> bool:
+        # Distância entre envelopes; conserva a regra de borda quando buffer=0.
+        dx = max(a[0] - b[2], b[0] - a[2], 0.0)
+        dy = max(a[1] - b[3], b[1] - a[3], 0.0)
+        return intersects(a, b) or (buffer_m > 0 and hypot(dx, dy) < buffer_m)
+
+    if any(conflicts(bounds[i], bounds[j]) for i in validation for j in test):
         raise ValueError("Validacao e teste interceptam a mesma area.")
 
     train = []
@@ -80,7 +100,7 @@ def region_holdout_from_bounds(
     for i, bbox in enumerate(bounds):
         if i in forbidden:
             continue
-        if any(intersects(bbox, bounds[j]) for j in forbidden):
+        if any(conflicts(bbox, bounds[j]) for j in forbidden):
             purged.append(i)
         else:
             train.append(i)
@@ -109,6 +129,17 @@ def regional_split(
     """Le os bounds dos GeoTIFFs originais, sem processar pixels nem alterar dados."""
     import rasterio
 
+    from src.config import get_config
+
+    config = get_config()["official_dataset"]["split"]
+    defaults = {
+        "test_center": tuple(config["test_center_epsg32723"]),
+        "validation_center": tuple(config["validation_center_epsg32723"]),
+        "test_radius_m": config["region_radius_m"],
+        "validation_radius_m": config["region_radius_m"],
+        "buffer_m": config.get("buffer_m", 0.0),
+    }
+    defaults.update(kwargs)
     bounds: list[Bounds] = []
     municipalities = []
     for pair in pairs:
@@ -118,4 +149,4 @@ def regional_split(
             b = raster.bounds
             bounds.append((b.left, b.bottom, b.right, b.top))
         municipalities.append(pair.municipality)
-    return region_holdout_from_bounds(bounds, municipalities, **kwargs)
+    return region_holdout_from_bounds(bounds, municipalities, **defaults)

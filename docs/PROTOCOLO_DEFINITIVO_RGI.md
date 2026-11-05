@@ -57,6 +57,8 @@ aplicado**, pois transforma 255 em café e 1 em não-café.
   separando o teste e a validação. Esta configuração está **candidata**;
   não congelar até a auditoria e revisão de representatividade.
 - Excluir do treino todos os patches que interceptem validação ou teste.
+  A proposta atual também exige margem de 1km entre envelopes, configurada
+  em `official_dataset.split.buffer_m`; ver [evidências e limitações](PILOTOS_CUDA_E_AUDITORIA.md).
   Os 206 patches formam um único componente de sobreposição encadeada;
   uma divisão aleatória por patch ou por componente não é apropriada.
 - Reservar teste espacial independente antes da seleção de hiperparâmetros;
@@ -77,3 +79,8 @@ Há café e não-café em todo patch 512; somente 4 dos 824 quadrantes 256
 são puramente negativos, e 1 é totalmente ignorado. A preparação das GPUs,
 o treino oficial de U-Net e U-Mamba e a avaliação independente ainda
 **não foram executados**.
+
+Continuação: a auditoria passou a abranger os 285 pares NN, 285 pares da
+alternativa isolada e os 18 TIFFs de origem. Pilotos técnicos curtos da U-Net
+foram executados em CUDA local; U-Mamba aguarda Linux compatível. Isso não
+altera o estado de treinamento científico acima.
