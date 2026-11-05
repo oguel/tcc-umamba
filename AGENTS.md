@@ -1,95 +1,38 @@
-# AGENTS.md — Regras do Projeto
+# Instruções para desenvolvimento — TCC U-Mamba
 
-## Contexto
+## Definição científica
+- Pesquisa: segmentação binária de cafezais, **RGI de Guaxupé, código 310044**.
+- Arquitetura principal: **U-Mamba**; baseline: **U-Net**.
+- **Um treino/avaliação regional**, sem experimentos separados por cidade.
+- As novas pastas `Municipios` e `Cenas` são o conjunto oficial.
+- Os testes com imagens antigas são somente histórico e jamais podem ser anunciados como resultado final.
+- **Três Pontas** está fora da RGI 310044 (é 310046). Preservar seus dados separadamente para possível teste externo.
 
-Este repositório implementa um TCC de segmentação semântica binária de lavouras cafeeiras usando imagens Sentinel-2. A arquitetura principal é U-Mamba, com U-Net como baseline.
+## Contrato de dados
+- Patches 512×512, stride 300, TIFF georreferenciado.
+- Pares devem ser associados por município/ano, variante e nome do patch; duplicatas idênticas devem ser removidas.
+- Máscara oficial `0=Não-Café, 1=Café, 255=Ignorar`.
+- Excluir 255 das perdas, métricas e estatísticas supervisionadas; nunca binarizar o lote por `mask > 127`.
+- Conferir metadados de radiometria, bandas, georreferenciamento e proveniência antes do treinamento.
+- Particionar espacialmente, com barreira/purge entre patches sobrepostos.
+- Guardar teste espacial independente para avaliação cega, depois de selecionar modelos.
 
-## Idioma
+## Código
+- Documentação pt-BR; nomes de variáveis e funções em inglês.
+- Lógica reutilizável em `src/`; scripts em `scripts/`.
+- Fonte de configuração `src/config.yaml`, seção `official_dataset`. Seções legadas ficam somente para a execução histórica.
+- Não colocar datasets, tokens, chaves, pesos grandes ou materiais de parceiros no GitHub.
+- Adicionar testes para alterações de loader, validação, loss e split.
 
-- Markdown e documentação voltada ao TCC: pt-BR.
-- Identificadores de código: en-US.
-- Comentários técnicos no código: pt-BR, objetivos e impessoais.
+## Ambiente
+- Kaggle é o destino preferencial para treino; não presumir compatibilidade de PyTorch/mamba-ssm.
+- GPU T4 x2 conforme disponibilidade e cota da conta.
+- Usar `/kaggle/input` para dados e `/kaggle/working` para resultados.
+- Realizar smoke test U-Mamba + CUDA antes de treinar.
+- Resultados: usar apenas medições reais, sem inventar experimentos.
 
-## Arquitetura
-
-- Notebooks orquestram cada etapa.
-- Lógica reutilizável fica em `src/`.
-- Evitar duplicação de código entre notebooks.
-- Caminhos e hiperparâmetros devem vir de `src/config.yaml`.
-- Dados grandes, pesos e resultados ficam no Google Drive, não no Git.
-
-## Reprodutibilidade
-
-- Fixar seeds de Python, NumPy e PyTorch.
-- Registrar configuração usada em cada experimento.
-- Salvar métricas e checkpoints por execução.
-- Evitar vazamento espacial entre treino, validação e teste.
-- Não afirmar resultados que ainda não foram produzidos por execução real.
-
-## Modelos
-
-### U-Net
-
-Usada como baseline para confirmar o funcionamento completo do pipeline de dados, treinamento e avaliação.
-
-### U-Mamba
-
-Arquitetura principal. Deve combinar representação local convolucional com blocos Mamba/SSM para dependências de longo alcance.
-
-A adaptação deverá considerar:
-
-- entrada RGB no dataset experimental inicial;
-- entrada B2/B3/B4/B8 no dataset Sentinel-2 definitivo;
-- segmentação binária com 1 canal de saída;
-- uso de memória compatível com GPU disponível;
-- comparação justa com U-Net.
-
-## Dados
-
-- RGI de Guaxupé: código IBGE `310044`.
-- Sentinel-2: `COPERNICUS/S2_SR_HARMONIZED`.
-- Bandas finais: B2, B3, B4, B8.
-- Patch alvo: 256 × 256.
-- Classes: Café e Não-Café.
-- Máscaras devem ser binárias antes do cálculo de loss/métricas.
-
-## Armazenamento
-
-Raiz canônica:
-
-```text
-MyDrive/tcc/
-```
-
-Nunca versionar:
-
-- tokens;
-- credenciais;
-- chaves JSON;
-- pesos grandes;
-- datasets brutos;
-- exportações GeoTIFF grandes.
-
-## Qualidade
-
-- DRY;
-- KISS;
-- responsabilidade única;
-- separação entre dados, modelos, treinamento e avaliação;
-- `ruff`, `mypy` e `pytest` para código reutilizável.
-
-## Ambientes
-
-Execução principal em Google Colab ou Kaggle. Código local pode ser usado para edição, testes leves e versionamento.
-
-Dependências específicas de Mamba/CUDA só devem ser fixadas depois que uma combinação funcional de PyTorch, CUDA, `causal-conv1d` e `mamba-ssm` for validada.
-
-## Git
-
-Repositório oficial deste projeto:
-
-```text
-https://github.com/oguel/tcc-umamba
-```
-
-O bootstrap e os notebooks devem buscar código somente deste repositório.
+## Referências acadêmicas
+- Três arquivos recebidos do João estão no Drive em `03_REFERENCIAS_MONOGRAFIA`.
+- Contêm material relativo ao TCC **dele**, com SegFormer, autoria e resultados diferentes.
+- Reutilizar apenas normas, método de organização e referências verificadas,
+  nunca transferir a autoria, o texto, o título ou resultados dele como se fossem deste TCC.
