@@ -18,6 +18,7 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader, Subset
 
+from src.data.augmentation import RGIPatchViews
 from src.data.emater_dataset import EMATERRGIDataset, find_rgi_pairs
 from src.data.emater_spatial import spatial_folds
 from src.losses import BCEDiceLoss
@@ -62,6 +63,10 @@ def train(
     output: Path,
     seed: int,
     batch_size: int,
+    patch_size: int = 512,
+    augment: bool = False,
+    train_views_per_image: int | None = None,
+    num_workers: int = 2,
     evaluate_test: bool = False,
 ):
     random.seed(seed)
@@ -73,18 +78,32 @@ def train(
     pairs = find_rgi_pairs(root)
     train_ids, val_ids, test_ids = make_holdouts(pairs, seed=seed)
     dataset = EMATERRGIDataset(pairs)
-    size = 512
+    size = patch_size
+    if train_views_per_image is None:
+        train_views_per_image = 4 if size == 256 else 1
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if kind == "umamba" and device.type != "cuda":
         raise RuntimeError("U-Mamba requer runtime CUDA compatível.")
 
-    def loader(ids, shuffle=False):
+    def loader(ids, training=False):
+        source = Subset(dataset, ids)
+        views = RGIPatchViews(
+            source,
+            size=size,
+            mode="train" if training else "eval",
+            augment=augment if training else False,
+            train_views_per_image=train_views_per_image if training else 1,
+        )
         return DataLoader(
-            Subset(dataset, ids), batch_size=batch_size, shuffle=shuffle,
-            num_workers=2, pin_memory=device.type == "cuda",
+            views,
+            batch_size=batch_size,
+            shuffle=training,
+            num_workers=num_workers,
+            pin_memory=device.type == "cuda",
+            generator=torch.Generator().manual_seed(seed + (0 if training else 1)),
         )
 
-    train_loader = loader(train_ids, shuffle=True)
+    train_loader = loader(train_ids, training=True)
     val_loader = loader(val_ids)
     test_loader = loader(test_ids)
 
@@ -102,6 +121,9 @@ def train(
         "blocks_m": 15000,
         "k": 5,
         "source_root": str(root),
+        "patch_size": size,
+        "augment_train_only": augment,
+        "train_views_per_image": train_views_per_image,
         "train": [str(pairs[i].image.relative_to(root)) for i in train_ids],
         "validation": [str(pairs[i].image.relative_to(root)) for i in val_ids],
         "test_locked": [str(pairs[i].image.relative_to(root)) for i in test_ids],
@@ -128,6 +150,12 @@ def train(
         "num_train": len(train_ids),
         "num_val": len(val_ids),
         "num_test": len(test_ids),
+        "patch_size": size,
+        "augmentation": "dihedral_flip_rotate90" if augment else "none",
+        "train_views_per_image": train_views_per_image,
+        "train_samples_per_epoch": len(train_loader.dataset),
+        "validation_views": len(val_loader.dataset),
+        "test_views": len(test_loader.dataset),
         "excluded_external": "tres_pontas_2024",
         "device": str(device),
         "platform": platform.platform(),
@@ -155,6 +183,16 @@ def main():
     parser.add_argument("--model", required=True, choices=("unet", "umamba"))
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--batch-size", type=int, default=1)
+    parser.add_argument("--patch-size", type=int, choices=(256, 512), default=512)
+    parser.add_argument(
+        "--augment", action="store_true",
+        help="Apenas no treino: crops aleatorios, flips e rotacoes em 90 graus.",
+    )
+    parser.add_argument(
+        "--train-views-per-image", type=int, choices=(1, 2, 3, 4),
+        help="Padrao: 4 views para 256; 1 para 512.",
+    )
+    parser.add_argument("--num-workers", type=int, default=2)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--output", type=Path, default=Path("artifacts/rgi_runs"))
     parser.add_argument(
@@ -162,10 +200,14 @@ def main():
         help="Abrir teste cego apenas na execução final após congelar o protocolo.",
     )
     args = parser.parse_args()
-    if args.epochs < 1 or args.batch_size < 1:
-        parser.error("epochs e batch-size precisam ser >= 1")
+    if args.epochs < 1 or args.batch_size < 1 or args.num_workers < 0:
+        parser.error("epochs e batch-size devem ser >= 1; num-workers deve ser >= 0")
     train(
         args.root, args.model, args.epochs, args.output, args.seed, args.batch_size,
+        patch_size=args.patch_size,
+        augment=args.augment,
+        train_views_per_image=args.train_views_per_image,
+        num_workers=args.num_workers,
         evaluate_test=args.evaluate_test,
     )
 
