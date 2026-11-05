@@ -165,6 +165,8 @@ class EMATERRGIDataset(Dataset):
                 )
             try:
                 offset = float(src.tags()["BOA_ADD_OFFSET"])
+                if not np.isfinite(offset):
+                    raise ValueError("offset não finito")
             except (KeyError, TypeError, ValueError) as exc:
                 raise ValueError(
                     f"BOA_ADD_OFFSET ausente/inválido no GeoTIFF: {pair.image}"
@@ -177,6 +179,7 @@ class EMATERRGIDataset(Dataset):
             if src.count != 1:
                 raise ValueError(f"Máscara deve ter 1 banda: {pair.mask}")
             mask = src.read(1)
+            valid_mask = src.read_masks(1) > 0
             if src.crs != image_crs or src.transform != image_transform:
                 raise ValueError(f"Imagem e máscara com grids distintos: {pair.image}")
             if src.bounds != image_bounds:
@@ -186,7 +189,7 @@ class EMATERRGIDataset(Dataset):
             raise ValueError(f"Dimensões não coincidem em {pair.image}")
         validate_mask_values(mask)
         mask = mask.copy()
-        mask[~valid_image] = 255
+        mask[~valid_image | ~valid_mask] = 255
         image = normalize_sentinel_dn(image, offset=offset)
         # 255 inclui borda/nodata de imagem mesmo se a máscara vier com valor 0.
         return torch.from_numpy(image.copy()), torch.from_numpy(mask.astype(np.float32)[None])

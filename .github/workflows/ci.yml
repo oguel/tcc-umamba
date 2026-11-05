@@ -17,6 +17,11 @@ jobs:
       - name: Ruff lint (src/tests)
         if: hashFiles('pyproject.toml') != ''
         run: uv run ruff check src tests
+      - name: Ruff lint (runners oficiais)
+        run: >-
+          uv run ruff check scripts/audit_municipal_sources.py
+          scripts/validate_emater_rgi.py scripts/train_emater_rgi.py scripts/smoke_umamba_gpu.py
+          scripts/package_rgi_dataset.py scripts/preflight_training.py
       - name: Ruff format check (src/tests)
         if: hashFiles('pyproject.toml') != ''
         run: uv run ruff format --check src tests

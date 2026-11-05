@@ -5,44 +5,38 @@ python -m scripts.train_emater_rgi --root /kaggle/input/NOME --model unet --epoc
 python -m scripts.train_emater_rgi --root /kaggle/input/NOME --model umamba --epochs 20
 O comando U-Mamba exige instalação validada do runtime CUDA oficial ANTES.
 """
+
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import platform
 import random
+import subprocess
 from datetime import datetime, timezone
+from importlib.metadata import distributions
 from pathlib import Path
 
 import numpy as np
 import torch
 from torch.utils.data import DataLoader, Subset
 
+from src.config import get_config
 from src.data.augmentation import RGIPatchViews
 from src.data.emater_dataset import EMATERRGIDataset, find_rgi_pairs
-from src.data.emater_spatial import spatial_folds
+from src.data.rgi_fingerprint import dataset_fingerprint
+from src.data.rgi_geographic_holdout import regional_split
 from src.losses import BCEDiceLoss
 from src.models.unet import UNet
-from src.trainer import fit_model, run_epoch
+from src.trainer import fit_model
+from src.training_state import save_json
 
 
-def make_holdouts(pairs, k=5, block_m=15000, seed=42):
-    """Dois folds espaciais distintos: um teste cego, um validação.
-
-    Calcula a interseção dos conjuntos permitidos nos dois holdouts, para
-    remover também patches que cruzam os limites entre teste e validação.
-    """
-    folds = spatial_folds(pairs, k=k, block_m=block_m, seed=seed)
-    permitted_from_test, test = map(set, folds[0])
-    permitted_from_val, candidates_val = map(set, folds[1])
-    val = sorted(candidates_val & permitted_from_test)
-    train = sorted(permitted_from_test & permitted_from_val)
-    test = sorted(test)
-    if not (train and val and test):
-        raise ValueError("Divisões vazias: ajuste a granularidade do bloco espacial.")
-    if set(train) & set(val) or set(train) & set(test) or set(val) & set(test):
-        raise AssertionError("Vazamento entre splits.")
-    return train, val, test
+def make_holdouts(pairs):
+    """Proposta de holdout regional: teste totalmente fechado em pilotos."""
+    result = regional_split(pairs)
+    return list(result.train), list(result.validation), list(result.test), list(result.purged)
 
 
 def build_model(kind: str, size: int) -> torch.nn.Module:
@@ -50,8 +44,11 @@ def build_model(kind: str, size: int) -> torch.nn.Module:
         return UNet(in_channels=4, out_channels=1)
     if kind == "umamba":
         from src.models.umamba import build_official_umamba_enc_2d
+
         return build_official_umamba_enc_2d(
-            input_channels=4, num_classes=1, input_size=(size, size),
+            input_channels=4,
+            num_classes=1,
+            input_size=(size, size),
         )
     raise ValueError(f"Modelo desconhecido: {kind}")
 
@@ -68,20 +65,63 @@ def train(
     train_views_per_image: int | None = None,
     num_workers: int = 2,
     evaluate_test: bool = False,
+    expected_fingerprint: str | None = None,
+    device_name: str = "auto",
+    pilot_train_per_municipality: int = 0,
+    pilot_val_limit: int = 0,
+    resume_run: Path | None = None,
+    run_mode: str = "pilot",
 ):
+    if run_mode not in ("pilot", "training"):
+        raise ValueError("Modo de execução inválido.")
+    if run_mode == "training" and (pilot_train_per_municipality or pilot_val_limit):
+        raise ValueError("Treinamento requer todos os patches das divisões de treino/validação.")
+    if evaluate_test:
+        raise ValueError(
+            "Treinamento nunca avalia teste cego; use avaliador final separado "
+            "somente depois de congelar o protocolo."
+        )
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
+    torch.backends.cudnn.benchmark = False
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
 
     pairs = find_rgi_pairs(root)
-    train_ids, val_ids, test_ids = make_holdouts(pairs, seed=seed)
+    fingerprint = dataset_fingerprint(pairs)
+    if expected_fingerprint is None:
+        expected_fingerprint = get_config()["official_dataset"]["expected_rgi_fingerprint"]
+    if expected_fingerprint and fingerprint != expected_fingerprint:
+        raise ValueError("Fingerprint divergente; piloto cancelado antes de carregar pixels.")
+    train_ids, val_ids, test_ids, purged_ids = make_holdouts(pairs)
+    full_train_count, full_val_count = len(train_ids), len(val_ids)
+    if pilot_train_per_municipality:
+        selected = []
+        for municipality in sorted({pairs[i].municipality for i in train_ids}):
+            selected.extend(
+                [i for i in train_ids if pairs[i].municipality == municipality][
+                    :pilot_train_per_municipality
+                ]
+            )
+        train_ids = selected
+    if pilot_val_limit:
+        val_ids = val_ids[:pilot_val_limit]
     dataset = EMATERRGIDataset(pairs)
     size = patch_size
     if train_views_per_image is None:
         train_views_per_image = 4 if size == 256 else 1
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device(
+        "cuda"
+        if device_name == "auto" and torch.cuda.is_available()
+        else "cpu"
+        if device_name == "auto"
+        else device_name
+    )
+    if device.type == "cuda" and not torch.cuda.is_available():
+        raise RuntimeError(
+            "CUDA solicitada, mas indisponível; não executar piloto em CPU silenciosamente."
+        )
     if kind == "umamba" and device.type != "cuda":
         raise RuntimeError("U-Mamba requer runtime CUDA compatível.")
 
@@ -105,21 +145,87 @@ def train(
 
     train_loader = loader(train_ids, training=True)
     val_loader = loader(val_ids)
-    test_loader = loader(test_ids)
+    # Nao carregar o teste cego durante desenvolvimento.
 
     model = build_model(kind, size=size).to(device)
     criterion = BCEDiceLoss(ignore_index=255)
     optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4)
+    repo_root = Path(__file__).resolve().parents[1]
+    code_hash = hashlib.sha256()
+    for path in sorted([*repo_root.glob("src/**/*.py"), *repo_root.glob("scripts/*.py")]):
+        code_hash.update(path.relative_to(repo_root).as_posix().encode())
+        code_hash.update(path.read_bytes())
+    contract = {
+        "dataset_fingerprint": fingerprint,
+        "split_sha256": get_config()["official_dataset"]["split"]["expected_split_sha256"],
+        "code_sha256": code_hash.hexdigest(),
+        "model": kind,
+        "seed": seed,
+        "batch_size": batch_size,
+        "patch_size": size,
+        "augment": augment,
+        "train_views_per_image": train_views_per_image,
+        "num_workers": num_workers,
+        "pilot_train_per_municipality": pilot_train_per_municipality,
+        "pilot_val_limit": pilot_val_limit,
+        "run_mode": run_mode,
+        "epoch_budget": epochs,
+        "optimizer": "AdamW",
+        "lr": 1e-4,
+        "loss": "BCE+Dice_ignore255",
+        "torch": str(torch.__version__),
+        "train_count": len(train_ids),
+        "validation_count": len(val_ids),
+    }
     # Execuções independentes evitam sobrescrever pesos e métricas históricos.
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
-    run_dir = output / f"{timestamp}_{kind}_seed{seed}"
-    run_dir.mkdir(parents=True, exist_ok=False)
+    run_dir = resume_run if resume_run is not None else output / f"{timestamp}_{kind}_seed{seed}"
+    if resume_run is not None:
+        previous = json.loads((run_dir / "invocation.json").read_text(encoding="utf-8"))
+        if previous != contract:
+            raise ValueError(
+                "Retomada incompatível: dados, divisão, código ou configuração mudaram."
+            )
+        if not (run_dir / "last.pt").is_file():
+            raise ValueError("Retomada requer last.pt da última época concluída.")
+    else:
+        run_dir.mkdir(parents=True, exist_ok=False)
+        save_json(run_dir / "invocation.json", contract)
+        save_json(run_dir / "config_snapshot.json", get_config())
+    try:
+        revision = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=repo_root, text=True, stderr=subprocess.DEVNULL
+        ).strip()
+    except (OSError, subprocess.CalledProcessError):
+        revision = None
+    save_json(
+        run_dir / f"environment_{timestamp}.json",
+        {
+            "python": platform.python_version(),
+            "platform": platform.platform(),
+            "torch": str(torch.__version__),
+            "cuda": str(torch.version.cuda),
+            "gpu": torch.cuda.get_device_name(0) if device.type == "cuda" else None,
+            "git_revision": revision,
+            "code_sha256": contract["code_sha256"],
+            "packages": {
+                d.metadata["Name"]: d.version for d in distributions() if d.metadata.get("Name")
+            },
+        },
+    )
     # A identidade espacial do teste é preservada, mas o conjunto NÃO é
     # avaliado durante exploração/seleção de hiperparâmetros.
     split_record = {
         "seed": seed,
-        "blocks_m": 15000,
-        "k": 5,
+        "split_method": get_config()["official_dataset"]["split"]["method"],
+        "split_status": get_config()["official_dataset"]["split"]["status"],
+        "split_sha256": get_config()["official_dataset"]["split"]["expected_split_sha256"],
+        "dataset_fingerprint": fingerprint,
+        "split_approved": False,  # aprovação científica não decorre do congelamento espacial
+        "full_candidate_train_count": full_train_count,
+        "full_candidate_validation_count": full_val_count,
+        "pilot_train_per_municipality": pilot_train_per_municipality,
+        "pilot_val_limit": pilot_val_limit,
         "source_root": str(root),
         "patch_size": size,
         "augment_train_only": augment,
@@ -127,35 +233,65 @@ def train(
         "train": [str(pairs[i].image.relative_to(root)) for i in train_ids],
         "validation": [str(pairs[i].image.relative_to(root)) for i in val_ids],
         "test_locked": [str(pairs[i].image.relative_to(root)) for i in test_ids],
+        "purged": [str(pairs[i].image.relative_to(root)) for i in purged_ids],
     }
     (run_dir / "splits.json").write_text(
         json.dumps(split_record, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
     ckpt = run_dir / f"best_{kind}_rgi.pt"
-    history = fit_model(
-        model, train_loader, val_loader, criterion, optimizer,
-        device, epochs=epochs, checkpoint_path=ckpt,
-    )
+    save_json(run_dir / "status.json", {"status": "running", "blind_test_evaluated": False})
+    try:
+        history = fit_model(
+            model,
+            train_loader,
+            val_loader,
+            criterion,
+            optimizer,
+            device,
+            epochs=epochs,
+            checkpoint_path=ckpt,
+            resume_path=run_dir / "last.pt" if resume_run is not None else None,
+            run_contract=contract,
+        )
+    except BaseException as exc:
+        save_json(
+            run_dir / "status.json",
+            {
+                "status": "interrupted" if isinstance(exc, KeyboardInterrupt) else "failed",
+                "error_type": type(exc).__name__,
+                "error": str(exc),
+                "resume_from": "last.pt" if (run_dir / "last.pt").exists() else None,
+                "blind_test_evaluated": False,
+            },
+        )
+        raise
     checkpoint = torch.load(ckpt, map_location=device, weights_only=True)
     model.load_state_dict(checkpoint["model_state_dict"])
-    # O teste cego só será aberto na avaliação oficial, uma vez por modelo
-    # após congelar arquitetura, configurações e melhor checkpoint.
-    metrics = run_epoch(model, test_loader, criterion, device) if evaluate_test else None
+    # NUNCA inferir o teste nesta rotina. Criar script separado de avaliacao
+    # final apenas apos congelar dataset, hiperparametros e checkpoints.
+    metrics = None
     report = {
         "model": kind,
-        "stage": "final_test" if evaluate_test else "development_validation",
+        "stage": (
+            "technical_pilot_not_scientific_result"
+            if run_mode == "pilot"
+            else "controlled_training_not_final_evaluation"
+        ),
+        "run_contract": contract,
         "epochs_requested": epochs,
         "best_epoch": checkpoint["epoch"],
         "best_val_iou": checkpoint["val_iou"],
         "num_train": len(train_ids),
+        "dataset_fingerprint": fingerprint,
         "num_val": len(val_ids),
-        "num_test": len(test_ids),
+        "num_test_locked": len(test_ids),
+        "num_purged": len(purged_ids),
         "patch_size": size,
         "augmentation": "dihedral_flip_rotate90" if augment else "none",
         "train_views_per_image": train_views_per_image,
         "train_samples_per_epoch": len(train_loader.dataset),
         "validation_views": len(val_loader.dataset),
-        "test_views": len(test_loader.dataset),
+        "test_views_not_evaluated": len(test_ids) * (4 if size == 256 else 1),
         "excluded_external": "tres_pontas_2024",
         "device": str(device),
         "platform": platform.platform(),
@@ -174,6 +310,15 @@ def train(
         json.dumps(history, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
     print(json.dumps(report, indent=2, ensure_ascii=False))
+    save_json(
+        run_dir / "status.json",
+        {
+            "status": "completed",
+            "epochs_completed": len(history),
+            "blind_test_evaluated": False,
+            "final_scientific_evaluation_completed": False,
+        },
+    )
     return report
 
 
@@ -185,30 +330,49 @@ def main():
     parser.add_argument("--batch-size", type=int, default=1)
     parser.add_argument("--patch-size", type=int, choices=(256, 512), default=512)
     parser.add_argument(
-        "--augment", action="store_true",
+        "--augment",
+        action="store_true",
         help="Apenas no treino: crops aleatorios, flips e rotacoes em 90 graus.",
     )
     parser.add_argument(
-        "--train-views-per-image", type=int, choices=(1, 2, 3, 4),
+        "--train-views-per-image",
+        type=int,
+        choices=(1, 2, 3, 4),
         help="Padrao: 4 views para 256; 1 para 512.",
     )
     parser.add_argument("--num-workers", type=int, default=2)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
+    parser.add_argument("--expected-fingerprint")
+    parser.add_argument("--pilot-train-per-municipality", type=int, default=0)
+    parser.add_argument("--pilot-val-limit", type=int, default=0)
+    parser.add_argument("--resume-run", type=Path)
+    parser.add_argument("--run-mode", choices=("pilot", "training"), default="pilot")
     parser.add_argument("--output", type=Path, default=Path("artifacts/rgi_runs"))
-    parser.add_argument(
-        "--evaluate-test", action="store_true",
-        help="Abrir teste cego apenas na execução final após congelar o protocolo.",
-    )
+    # Nao disponibilizar --evaluate-test aqui: evitar vazamento acidental.
     args = parser.parse_args()
     if args.epochs < 1 or args.batch_size < 1 or args.num_workers < 0:
         parser.error("epochs e batch-size devem ser >= 1; num-workers deve ser >= 0")
+    if args.pilot_train_per_municipality < 0 or args.pilot_val_limit < 0:
+        parser.error("Limites do piloto devem ser >= 0")
     train(
-        args.root, args.model, args.epochs, args.output, args.seed, args.batch_size,
+        args.root,
+        args.model,
+        args.epochs,
+        args.output,
+        args.seed,
+        args.batch_size,
         patch_size=args.patch_size,
         augment=args.augment,
         train_views_per_image=args.train_views_per_image,
         num_workers=args.num_workers,
-        evaluate_test=args.evaluate_test,
+        evaluate_test=False,
+        expected_fingerprint=args.expected_fingerprint,
+        device_name=args.device,
+        pilot_train_per_municipality=args.pilot_train_per_municipality,
+        pilot_val_limit=args.pilot_val_limit,
+        resume_run=args.resume_run,
+        run_mode=args.run_mode,
     )
 
 

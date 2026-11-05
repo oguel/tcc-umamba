@@ -75,7 +75,26 @@ O script realiza uma atualização de uma U-Net compacta em CPU com raster sint�
 
 ## Estado atual
 
-O pipeline oficial está na branch principal `main`. Os scripts são independentes de plataforma e os caminhos de entrada/saída são configuráveis. **Não há resultados oficiais de treinamento com o novo conjunto confirmados ainda.**
+Para preparar o espaço no Kaggle e iniciar a execução, usar o
+[notebook 13](notebooks/13_kaggle_training.ipynb) e o
+[guia de partida e retomada](docs/INICIAR_KAGGLE.md).
+Há checkpoint por época, retomada e preflight de dados/CUDA; a execução remota
+ainda precisa ser validada na conta do Kaggle.
+
+Revisão espacial v1: validação com quatro patches de cada município, teste
+anterior preservado e margem de 1km. A divisão computacional congelada tem
+89 treino / 20 validação / 20 teste / 77 purgados, para pilotos.
+Ver [decisão, limites e hashes](docs/DIVISAO_ESPACIAL_V1.md).
+Os números da continuação abaixo descrevem a divisão anterior.
+
+Continuação técnica de 05/11/2026: auditoria NN de 285 pares e dos 18 rasters
+municipais de origem, pilotos curtos da U-Net executados em CUDA local e
+preflight U-Mamba pendente de Linux compatível. A divisão com margem de 1km
+continua candidata, com 119/20/20 patches e 47 purgados; a representatividade
+espacial ainda precisa de revisão. Evidências, limitações e comandos estão em
+[docs/PILOTOS_CUDA_E_AUDITORIA.md](docs/PILOTOS_CUDA_E_AUDITORIA.md).
+
+O pipeline está na branch principal `main`. Os scripts são independentes de plataforma e os caminhos de entrada/saída são configuráveis. A auditoria integral dos 206 pares de imagem/máscara da RGI foi feita em 05/11/2026, sem incompatibilidades detectadas nos formatos verificados. O holdout regional é **candidato**, com 142 treino, 20 validação, 20 teste fechado e 24 recortes excluídos por sobreposição. **Não há resultados oficiais de treinamento com o novo conjunto confirmados ainda.**
 
 ## Tecnologias
 

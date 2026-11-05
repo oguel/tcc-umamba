@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+import sys
 from typing import Sequence
 
 import torch
@@ -21,6 +22,11 @@ def _init_weights_he(module: nn.Module, negative_slope: float = 1e-2) -> None:
 
 def _resolve_umamba_class():
     """Resolve UMambaEnc preparada no runtime; mantém fallback nnU-Net."""
+    from src.models.umamba_runtime import RUNTIME_DIR, STANDALONE_FILE
+
+    # Um smoke em outro processo já pode ter preparado a arquitetura fixada.
+    if STANDALONE_FILE.is_file() and str(RUNTIME_DIR.resolve()) not in sys.path:
+        sys.path.insert(0, str(RUNTIME_DIR.resolve()))
     try:
         module = importlib.import_module("umamba_official_standalone")
         return module.UMambaEnc

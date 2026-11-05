@@ -2,6 +2,10 @@
 
 ## Escopo
 
+Atualização espacial: [v1 congelada para pilotos](DIVISAO_ESPACIAL_V1.md).
+Essa versão substitui a divisão candidata descrita historicamente abaixo e
+não constitui aprovação automática da campanha científica.
+
 - **Um único experimento regional**, com todos os pares válidos da RGI agregados.
 - Os nomes de municípios/anos servem como **proveniência geográfica e temporal**,
   não como seis treinamentos independentes.
@@ -31,7 +35,9 @@ Armazenamento canônico: `MyDrive/tcc/00_DADOS_OFICIAIS_RGI_GUAXUPE/`
 As partes 001/002 são complementares. Nunca tentar emparelhar imagem/máscara dentro de uma parte isolada. Os nomes de pasta identificam partes do download; não as renomeie ou combine
 automaticamente sem primeiro conferir duplicidades de patches e seu manifesto.
 
-**Variante oficial:** `Patches_P512_S300_NN`. A alternativa `Fora0_M0` altera pixels de borda (255 → 0) e não deve ser misturada. Os downloads 001 e 002 repartem imagens e máscaras de cada município: executar descoberta global na raiz que contenha AMBAS as partes.\n\nO conjunto observado contém patches 512 × 512 com deslocamento de 300 pixels,
+**Variante oficial:** `Patches_P512_S300_NN`. A alternativa `Fora0_M0` altera pixels de borda (255 → 0) e não deve ser misturada. Os downloads 001 e 002 repartem imagens e máscaras de cada município: executar descoberta global na raiz que contenha AMBAS as partes.
+
+O conjunto observado contém patches 512 × 512 com deslocamento de 300 pixels,
 imagens GeoTIFF e máscaras EMATER com **0=não-café, 1=café,
 255=ignorar**. O antigo carregamento PNG com `mask > 127` **não pode ser
 aplicado**, pois transforma 255 em café e 1 em não-café.
@@ -51,10 +57,14 @@ aplicado**, pois transforma 255 em café e 1 em não-café.
 
 - Construir primeiro todos os pares, descartando variantes repetidas da mesma
   imagem. Verificar que as duas partes `Municipios` não duplicam patches.
-- Aplicar `spatial_folds()` sobre os patches **agregados** da RGI, sem split
-  aleatório de patches ou treinamento por cidade.
-- Excluir do treino todo patch que intercepte a extensão de validação
-  (sobreposição de 512/300), evitando vazamento direto.
+- Usar `region_holdout_from_bounds()` com duas zonas espaciais compactas,
+  separando o teste e a validação. Esta configuração está **candidata**;
+  não congelar até a auditoria e revisão de representatividade.
+- Excluir do treino todos os patches que interceptem validação ou teste.
+  A proposta atual também exige margem de 1km entre envelopes, configurada
+  em `official_dataset.split.buffer_m`; ver [evidências e limitações](PILOTOS_CUDA_E_AUDITORIA.md).
+  Os 206 patches formam um único componente de sobreposição encadeada;
+  uma divisão aleatória por patch ou por componente não é apropriada.
 - Reservar teste espacial independente antes da seleção de hiperparâmetros;
   folds de validação servem para comparação/ajuste, não substituem teste cego.
 - Fazer análise de sensibilidade a sombras, anos e municípios **apenas depois**
@@ -66,6 +76,15 @@ aplicado**, pois transforma 255 em café e 1 em não-café.
 ## Estado de implementação
 
 O leitor GeoTIFF e as funções de divisão espacial foram adicionados como
-módulos novos para não quebrar notebooks experimentais antigos. A preparação
-das GPUs Kaggle, o treino oficial 512×512 U-Mamba e o teste de ponta a ponta
-**ainda precisam ser executados e validados na plataforma**.
+módulos novos para não quebrar notebooks experimentais antigos. Os 206 pares reais (imagens e máscaras) da variante NN foram inspecionados
+integralmente em 05/11/2026: bandas, CRS, máscara, alinhamento, offset e
+valores de pixels compatíveis, sem erros detectados nas verificações realizadas.
+Há café e não-café em todo patch 512; somente 4 dos 824 quadrantes 256
+são puramente negativos, e 1 é totalmente ignorado. A preparação das GPUs,
+o treino oficial de U-Net e U-Mamba e a avaliação independente ainda
+**não foram executados**.
+
+Continuação: a auditoria passou a abranger os 285 pares NN, 285 pares da
+alternativa isolada e os 18 TIFFs de origem. Pilotos técnicos curtos da U-Net
+foram executados em CUDA local; U-Mamba aguarda Linux compatível. Isso não
+altera o estado de treinamento científico acima.

@@ -1,5 +1,11 @@
 # Guia de execução — Kaggle (RGI Guaxupé)
 
+O fluxo de partida atualizado está em [INICIAR_KAGGLE.md](INICIAR_KAGGLE.md)
+e no notebook `13_kaggle_training.ipynb`. Utilizar esse fluxo com a divisão
+espacial v1 (89/20/20/77), sem copiar os comandos históricos abaixo que usam
+somente a main ou descrevem a divisão como candidata. A disponibilidade de
+GPU/cota é verificada na conta; o código aborta se CUDA estiver indisponível.
+
 ## Por que Kaggle?
 
 Utilizar GPUs Kaggle é uma opção razoável diante das cotas do Colab.
@@ -38,7 +44,7 @@ Conferir visualmente que:
 - `tres_pontas_2024` foi excluído;
 - CRS, resoluções, canais e máscaras estão corretos;
 - nenhuma máscara contém rótulos diferentes de 0, 1 e 255;
-- os cinco folds espaciais têm dados de treino e validação.
+- a divisao regional candidata tem treino, validacao, teste fechado e descartes nao vazios; nao usar o teste no piloto.
 
 Depois executar teste piloto U-Net, primeiro com épocas curtas:
 
@@ -58,7 +64,7 @@ o kernel se o PyTorch mudar. Não misturar versões do
 
 O runner reserva teste espacial, validação espacial e treino sobre os
 mesmos pares regionais; repita com as duas arquiteturas e mesma semente.
-O teste está **bloqueado por padrão**; a opção `--evaluate-test` deve ser usada só após congelar o protocolo. O teste de 2 épocas é apenas um *smoke test*. Não publicar métricas
+A avaliação do teste cego foi retirada do comando de treinamento. Será implementado um avaliador independente após congelar protocolo e pesos. O teste de 2 épocas é apenas um *smoke test*. Não publicar métricas
 como resultados finais antes da campanha de treino controlada.
 
 Salvar do diretório `/kaggle/working/tcc_rgi/` os pesos, métricas e

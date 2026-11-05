@@ -11,6 +11,7 @@ from torch import nn
 from torch.utils.data import DataLoader
 
 from src.metrics import BinaryConfusion, metrics_from_confusion
+from src.training_state import capture_rng, restore_rng, save_checkpoint, save_json
 
 
 def run_epoch(
@@ -26,6 +27,7 @@ def run_epoch(
 
     total_loss = 0.0
     sample_count = 0
+    skipped_ignored_samples = 0
     confusion = BinaryConfusion()
 
     context = torch.enable_grad() if training else torch.inference_mode()
@@ -33,6 +35,12 @@ def run_epoch(
         for images, masks in loader:
             images = images.to(device, non_blocking=True)
             masks = masks.to(device, non_blocking=True)
+            labeled = (masks != 255).flatten(start_dim=1).any(dim=1)
+            skipped_ignored_samples += int((~labeled).sum().item())
+            if not bool(labeled.any()):
+                continue
+            images = images[labeled]
+            masks = masks[labeled]
 
             if optimizer is not None:
                 optimizer.zero_grad(set_to_none=True)
@@ -47,6 +55,9 @@ def run_epoch(
 
             if optimizer is not None:
                 loss.backward()
+                torch.nn.utils.clip_grad_norm_(
+                    model.parameters(), float("inf"), error_if_nonfinite=True
+                )
                 optimizer.step()
 
             batch_size = images.shape[0]
@@ -54,8 +65,11 @@ def run_epoch(
             sample_count += batch_size
             confusion.update(logits.detach(), masks)
 
+    if sample_count == 0:
+        raise ValueError("Epoca sem nenhum pixel rotulado; verificar masks/crops.")
     metrics = metrics_from_confusion(confusion)
-    metrics["loss"] = total_loss / max(sample_count, 1)
+    metrics["loss"] = total_loss / sample_count
+    metrics["skipped_fully_ignored_views"] = float(skipped_ignored_samples)
     metrics.update({key: float(value) for key, value in confusion.as_dict().items()})
     return metrics
 
@@ -69,6 +83,8 @@ def fit_model(
     device: torch.device,
     epochs: int,
     checkpoint_path: str | Path,
+    resume_path: str | Path | None = None,
+    run_contract: dict | None = None,
 ) -> list[dict[str, Any]]:
     """Treina o modelo e salva o checkpoint com melhor IoU de validação."""
     checkpoint_path = Path(checkpoint_path)
@@ -76,8 +92,25 @@ def fit_model(
 
     history: list[dict[str, Any]] = []
     best_iou = -1.0
+    best_checkpoint = None
+    start_epoch = 1
+    last_path = checkpoint_path.parent / "last.pt"
+    if resume_path is not None:
+        state = torch.load(resume_path, map_location=device, weights_only=True)
+        if state.get("schema_version") != 1 or state.get("run_contract") != run_contract:
+            raise ValueError("Checkpoint incompatível com contrato/versão desta execução.")
+        model.load_state_dict(state["model_state_dict"])
+        optimizer.load_state_dict(state["optimizer_state_dict"])
+        history = state["history"]
+        best_checkpoint = state["best_checkpoint"]
+        best_iou = best_checkpoint["val_iou"]
+        start_epoch = state["epoch"] + 1
+        if epochs < state["epoch"]:
+            raise ValueError("Épocas solicitadas anteriores ao checkpoint.")
+        restore_rng(state["rng"], (train_loader, val_loader))
+        save_checkpoint(checkpoint_path, best_checkpoint)
 
-    for epoch in range(1, epochs + 1):
+    for epoch in range(start_epoch, epochs + 1):
         if device.type == "cuda":
             torch.cuda.reset_peak_memory_stats(device)
 
@@ -114,14 +147,39 @@ def fit_model(
 
         if val_metrics["iou"] > best_iou:
             best_iou = val_metrics["iou"]
-            torch.save(
-                {
-                    "model_state_dict": model.state_dict(),
-                    "optimizer_state_dict": optimizer.state_dict(),
-                    "epoch": epoch,
-                    "val_iou": best_iou,
+            best_checkpoint = {
+                "model_state_dict": {
+                    key: value.detach().cpu().clone() for key, value in model.state_dict().items()
                 },
-                checkpoint_path,
-            )
+                "epoch": epoch,
+                "val_iou": best_iou,
+                "run_contract": run_contract,
+            }
+            save_checkpoint(checkpoint_path, best_checkpoint)
+        assert best_checkpoint is not None
+        save_checkpoint(
+            last_path,
+            {
+                "schema_version": 1,
+                "model_state_dict": model.state_dict(),
+                "optimizer_state_dict": optimizer.state_dict(),
+                "epoch": epoch,
+                "history": history,
+                "best_checkpoint": best_checkpoint,
+                "rng": capture_rng((train_loader, val_loader)),
+                "run_contract": run_contract,
+            },
+        )
+        save_json(checkpoint_path.parent / "history.json", history)
+        save_json(
+            checkpoint_path.parent / "progress.json",
+            {
+                "epochs_completed": epoch,
+                "epochs_requested": epochs,
+                "last_checkpoint": last_path.name,
+                "best_epoch": best_checkpoint["epoch"],
+                "blind_test_evaluated": False,
+            },
+        )
 
     return history

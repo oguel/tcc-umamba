@@ -18,14 +18,18 @@ separado para possível validação externa adicional.
 ## Fonte de verdade do experimento
 
 - Drive: `MyDrive/tcc/00_DADOS_OFICIAIS_RGI_GUAXUPE/Municipios` e `Cenas`.
-- Variante oficial: `Patches_P512_S300_NN` (mapeamento nominal completo de\n  imagens/máscaras nas partes 001 e 002); `Fora0_M0` preservada como alternativa.\n- Lote observado: seis conjuntos, 285 patches selecionados; 206 candidatos
+- Variante oficial: `Patches_P512_S300_NN` (mapeamento nominal completo de
+  imagens/máscaras nas partes 001 e 002); `Fora0_M0` preservada como alternativa.
+- Lote observado: seis conjuntos, 285 patches selecionados; 206 candidatos
   dentro da RGI, 79 de Três Pontas. A contagem deve ser revalidada integralmente.
 - Imagens: GeoTIFF de 10 bandas Sentinel-2, DN uint16, EPSG:32723,
   metadados de fonte/BOA_ADD_OFFSET, dimensão 512x512, stride 300.
 - Referência supervisionada: máscaras derivadas dos dados EMATER, valores
   0=não-café, 1=café, 255=ignorar. A variante Fora0_M0 também
   codifica pixels sem imagem como 0: o leitor marca estes pixels como 255.
-- Cada parte isolada tem imagens e máscaras desencontradas. O loader usa\n  união lógica de ambas e só depois valida pares. Nunca mover originais.\n- Não misturar variantes alternativas do mesmo patch, anos e cenas de modo
+- Cada parte isolada tem imagens e máscaras desencontradas. O loader usa
+  união lógica de ambas e só depois valida pares. Nunca mover originais.
+- Não misturar variantes alternativas do mesmo patch, anos e cenas de modo
   indiscriminado. Não copiar dados de parceiros para repositórios públicos.
 - Históricos antigos em `02_HISTORICO_TESTES` NÃO entram nos resultados finais.
 
@@ -39,7 +43,7 @@ separado para possível validação externa adicional.
 | 3 | Auditar visualmente mosaicos, bounds, proporções de café/não-café e bordas/áreas ignoradas | Artefatos/rotulagem incorretos |
 | 4 | Corrigir viés de exemplos positivos, adicionar áreas comprovadamente não-café | Sem negativos confiáveis |
 | 5 | Congelar versão/fingerprint do conjunto e uma área de teste espacial intocável | Vazamento/overlap de teste |
-| 6 | Dividir dados restantes para seleção/validação espacial, verificar tamanho de blocos | Treino/val vazios ou sobrepostos |
+| 6 | Revisar e congelar as duas regioes de validacao/teste e o buffer de exclusao, garantindo cobertura regional | Treino, val, teste sobrepostos ou enviesados |
 | 7 | Testar augmentação online 256/512 em CPU e preparar runtime GPU/PyTorch/CUDA; smoke U-Mamba em GPU | Kernel incompatível, OOM, NaN |
 | 8 | Treinar comparativamente com mesma fonte, folds, bandas, hiperparâmetros e sementes | Orçamentos de treino não comparáveis |
 | 9 | Congelar melhores modelos, realizar uma avaliação no teste cego | Teste já reutilizado em tuning |
@@ -65,7 +69,7 @@ sobre os dados remanescentes, sem reutilizar o teste final.
 - Fixar seed, código (SHA de commit), fingerprint de dados, origem e versão
   do raster, definições de classes, estatísticas normalizadas obtidas
   **apenas do treino**, VRAM e nome da GPU.
-- `--evaluate-test` é exclusivamente para avaliação final. O teste fica
+- O `--evaluate-test` foi desabilitado no treinamento; a avaliação final precisa de rotina separada. O teste fica
   fechado durante tuning, varredura de hiperparâmetros e ensaios de notebook.
 - O código é portátil: Colab, Kaggle ou outro ambiente CUDA compatível;
   scripts aceitam caminhos de entrada/saída. A compatibilidade de U-Mamba

@@ -14,7 +14,7 @@
 - Máscara oficial `0=Não-Café, 1=Café, 255=Ignorar`.
 - Excluir 255 das perdas, métricas e estatísticas supervisionadas; nunca binarizar o lote por `mask > 127`.
 - Conferir metadados de radiometria, bandas, georreferenciamento e proveniência antes do treinamento.
-- Particionar espacialmente, com barreira/purge entre patches sobrepostos.
+- Holdout espacial candidato por zonas compactas e purga de sobreposições, com teste bloqueado no runner. Nada de métricas do teste durante tuning. Os 206 patches são conectados por sobreposição transitiva; não dividir aleatoriamente.
 - Guardar teste espacial independente para avaliação cega, depois de selecionar modelos.
 
 ## Código
