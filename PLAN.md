@@ -43,7 +43,7 @@ separado para possível validação externa adicional.
 | 3 | Auditar visualmente mosaicos, bounds, proporções de café/não-café e bordas/áreas ignoradas | Artefatos/rotulagem incorretos |
 | 4 | Corrigir viés de exemplos positivos, adicionar áreas comprovadamente não-café | Sem negativos confiáveis |
 | 5 | Congelar versão/fingerprint do conjunto e uma área de teste espacial intocável | Vazamento/overlap de teste |
-| 6 | Dividir dados restantes para seleção/validação espacial, verificar tamanho de blocos | Treino/val vazios ou sobrepostos |
+| 6 | Revisar e congelar as duas regioes de validacao/teste e o buffer de exclusao, garantindo cobertura regional | Treino, val, teste sobrepostos ou enviesados |
 | 7 | Testar augmentação online 256/512 em CPU e preparar runtime GPU/PyTorch/CUDA; smoke U-Mamba em GPU | Kernel incompatível, OOM, NaN |
 | 8 | Treinar comparativamente com mesma fonte, folds, bandas, hiperparâmetros e sementes | Orçamentos de treino não comparáveis |
 | 9 | Congelar melhores modelos, realizar uma avaliação no teste cego | Teste já reutilizado em tuning |
