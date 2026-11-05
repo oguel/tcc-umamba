@@ -1,4 +1,5 @@
 """Funções de perda para segmentação binária com pixels 255 ignorados."""
+
 from __future__ import annotations
 
 import torch
@@ -41,7 +42,9 @@ class BCEDiceLoss(nn.Module):
     """Combina BCEWithLogits e Dice Loss sem contribuir com pixels ignorados."""
 
     def __init__(
-        self, bce_weight: float = 1.0, dice_weight: float = 1.0,
+        self,
+        bce_weight: float = 1.0,
+        dice_weight: float = 1.0,
         ignore_index: int = 255,
     ) -> None:
         super().__init__()
