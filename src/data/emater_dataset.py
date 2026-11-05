@@ -148,9 +148,7 @@ class EMATERRGIDataset(Dataset):
             expected_bands = ("B02", "B03", "B04", "B08")
             actual_bands = tuple(src.descriptions[i - 1] for i in self.band_indexes)
             if self.band_indexes == (1, 2, 3, 4) and actual_bands != expected_bands:
-                raise ValueError(
-                    f"Ordem de bandas inesperada em {pair.image}: {actual_bands}"
-                )
+                raise ValueError(f"Ordem de bandas inesperada em {pair.image}: {actual_bands}")
             if image.dtype != np.dtype("uint16"):
                 raise ValueError(
                     f"Imagens Sentinel-2 oficiais devem conter DN uint16: {pair.image}"
