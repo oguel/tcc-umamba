@@ -26,6 +26,10 @@ jobs:
       - name: Pytest (src/tests)
         if: hashFiles('pyproject.toml') != ''
         run: uv run pytest tests
+      - name: Smoke CPU (GeoTIFF sintetico 256 e 512 + augmentacao)
+        run: |
+          uv run python -m scripts.smoke_emater_rgi --synthetic --patch-size 256 --augment
+          uv run python -m scripts.smoke_emater_rgi --synthetic --patch-size 512 --augment
 
   notebook-conventions:
     name: Notebook conventions (structure + clean outputs)
