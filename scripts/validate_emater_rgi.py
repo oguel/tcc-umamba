@@ -13,7 +13,7 @@ from pathlib import Path
 import numpy as np
 
 from src.data.emater_dataset import find_rgi_pairs, validate_mask_values
-from src.data.emater_spatial import spatial_folds
+from src.data.rgi_geographic_holdout import regional_split
 
 
 def audit(root: Path, sample_limit: int = 0) -> dict:
@@ -109,11 +109,27 @@ def audit(root: Path, sample_limit: int = 0) -> dict:
         warnings.append("Auditoria PARCIAL. Não usar como aprovação do treino oficial.")
 
     try:
-        folds = spatial_folds(pairs)
-        split_info = [{"train": len(t), "val": len(v)} for t, v in folds]
+        proposal = regional_split(pairs)
+        split_info = {
+            "status": "candidate_not_frozen",
+            "method": "geographic_zones_with_overlap_purge",
+            "train": len(proposal.train),
+            "validation": len(proposal.validation),
+            "test_locked": len(proposal.test),
+            "purged": len(proposal.purged),
+            "train_by_municipality": dict(
+                Counter(pairs[i].municipality for i in proposal.train)
+            ),
+            "validation_by_municipality": dict(
+                Counter(pairs[i].municipality for i in proposal.validation)
+            ),
+            "test_by_municipality": dict(
+                Counter(pairs[i].municipality for i in proposal.test)
+            ),
+        }
     except ValueError as exc:
-        split_info = []
-        warnings.append(f"Split espacial inviável: {exc}")
+        split_info = {}
+        warnings.append(f"Split espacial inviavel: {exc}")
 
     return {
         "study_area": "RGI de Guaxupe 310044",
@@ -129,9 +145,9 @@ def audit(root: Path, sample_limit: int = 0) -> dict:
         "shape_counts": dict(shapes),
         "radiometric_offsets": dict(offsets),
         "pixel_counts_effective": dict(totals),
-        "spatial_folds": split_info,
+        "candidate_spatial_holdout": split_info,
         "warnings": warnings,
-        "preflight_approved": not warnings and len(checked) == len(pairs),
+        "preflight_approved": not warnings and bool(split_info) and len(checked) == len(pairs),
         "per_patch": per_patch,
         "training_completed": False,
     }
