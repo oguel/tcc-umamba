@@ -9,10 +9,13 @@ O comando U-Mamba exige instalação validada do runtime CUDA oficial ANTES.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import platform
 import random
+import subprocess
 from datetime import datetime, timezone
+from importlib.metadata import distributions
 from pathlib import Path
 
 import numpy as np
@@ -27,6 +30,7 @@ from src.data.rgi_geographic_holdout import regional_split
 from src.losses import BCEDiceLoss
 from src.models.unet import UNet
 from src.trainer import fit_model
+from src.training_state import save_json
 
 
 def make_holdouts(pairs):
@@ -65,7 +69,13 @@ def train(
     device_name: str = "auto",
     pilot_train_per_municipality: int = 0,
     pilot_val_limit: int = 0,
+    resume_run: Path | None = None,
+    run_mode: str = "pilot",
 ):
+    if run_mode not in ("pilot", "training"):
+        raise ValueError("Modo de execução inválido.")
+    if run_mode == "training" and (pilot_train_per_municipality or pilot_val_limit):
+        raise ValueError("Treinamento requer todos os patches das divisões de treino/validação.")
     if evaluate_test:
         raise ValueError(
             "Treinamento nunca avalia teste cego; use avaliador final separado "
@@ -74,6 +84,7 @@ def train(
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
+    torch.backends.cudnn.benchmark = False
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
 
@@ -139,10 +150,69 @@ def train(
     model = build_model(kind, size=size).to(device)
     criterion = BCEDiceLoss(ignore_index=255)
     optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4)
+    repo_root = Path(__file__).resolve().parents[1]
+    code_hash = hashlib.sha256()
+    for path in sorted([*repo_root.glob("src/**/*.py"), *repo_root.glob("scripts/*.py")]):
+        code_hash.update(path.relative_to(repo_root).as_posix().encode())
+        code_hash.update(path.read_bytes())
+    contract = {
+        "dataset_fingerprint": fingerprint,
+        "split_sha256": get_config()["official_dataset"]["split"]["expected_split_sha256"],
+        "code_sha256": code_hash.hexdigest(),
+        "model": kind,
+        "seed": seed,
+        "batch_size": batch_size,
+        "patch_size": size,
+        "augment": augment,
+        "train_views_per_image": train_views_per_image,
+        "num_workers": num_workers,
+        "pilot_train_per_municipality": pilot_train_per_municipality,
+        "pilot_val_limit": pilot_val_limit,
+        "run_mode": run_mode,
+        "epoch_budget": epochs,
+        "optimizer": "AdamW",
+        "lr": 1e-4,
+        "loss": "BCE+Dice_ignore255",
+        "torch": str(torch.__version__),
+        "train_count": len(train_ids),
+        "validation_count": len(val_ids),
+    }
     # Execuções independentes evitam sobrescrever pesos e métricas históricos.
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
-    run_dir = output / f"{timestamp}_{kind}_seed{seed}"
-    run_dir.mkdir(parents=True, exist_ok=False)
+    run_dir = resume_run if resume_run is not None else output / f"{timestamp}_{kind}_seed{seed}"
+    if resume_run is not None:
+        previous = json.loads((run_dir / "invocation.json").read_text(encoding="utf-8"))
+        if previous != contract:
+            raise ValueError(
+                "Retomada incompatível: dados, divisão, código ou configuração mudaram."
+            )
+        if not (run_dir / "last.pt").is_file():
+            raise ValueError("Retomada requer last.pt da última época concluída.")
+    else:
+        run_dir.mkdir(parents=True, exist_ok=False)
+        save_json(run_dir / "invocation.json", contract)
+        save_json(run_dir / "config_snapshot.json", get_config())
+    try:
+        revision = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=repo_root, text=True, stderr=subprocess.DEVNULL
+        ).strip()
+    except (OSError, subprocess.CalledProcessError):
+        revision = None
+    save_json(
+        run_dir / f"environment_{timestamp}.json",
+        {
+            "python": platform.python_version(),
+            "platform": platform.platform(),
+            "torch": str(torch.__version__),
+            "cuda": str(torch.version.cuda),
+            "gpu": torch.cuda.get_device_name(0) if device.type == "cuda" else None,
+            "git_revision": revision,
+            "code_sha256": contract["code_sha256"],
+            "packages": {
+                d.metadata["Name"]: d.version for d in distributions() if d.metadata.get("Name")
+            },
+        },
+    )
     # A identidade espacial do teste é preservada, mas o conjunto NÃO é
     # avaliado durante exploração/seleção de hiperparâmetros.
     split_record = {
@@ -169,16 +239,32 @@ def train(
         json.dumps(split_record, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
     ckpt = run_dir / f"best_{kind}_rgi.pt"
-    history = fit_model(
-        model,
-        train_loader,
-        val_loader,
-        criterion,
-        optimizer,
-        device,
-        epochs=epochs,
-        checkpoint_path=ckpt,
-    )
+    save_json(run_dir / "status.json", {"status": "running", "blind_test_evaluated": False})
+    try:
+        history = fit_model(
+            model,
+            train_loader,
+            val_loader,
+            criterion,
+            optimizer,
+            device,
+            epochs=epochs,
+            checkpoint_path=ckpt,
+            resume_path=run_dir / "last.pt" if resume_run is not None else None,
+            run_contract=contract,
+        )
+    except BaseException as exc:
+        save_json(
+            run_dir / "status.json",
+            {
+                "status": "interrupted" if isinstance(exc, KeyboardInterrupt) else "failed",
+                "error_type": type(exc).__name__,
+                "error": str(exc),
+                "resume_from": "last.pt" if (run_dir / "last.pt").exists() else None,
+                "blind_test_evaluated": False,
+            },
+        )
+        raise
     checkpoint = torch.load(ckpt, map_location=device, weights_only=True)
     model.load_state_dict(checkpoint["model_state_dict"])
     # NUNCA inferir o teste nesta rotina. Criar script separado de avaliacao
@@ -186,7 +272,12 @@ def train(
     metrics = None
     report = {
         "model": kind,
-        "stage": "technical_pilot_not_scientific_result",
+        "stage": (
+            "technical_pilot_not_scientific_result"
+            if run_mode == "pilot"
+            else "controlled_training_not_final_evaluation"
+        ),
+        "run_contract": contract,
         "epochs_requested": epochs,
         "best_epoch": checkpoint["epoch"],
         "best_val_iou": checkpoint["val_iou"],
@@ -219,6 +310,15 @@ def train(
         json.dumps(history, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
     print(json.dumps(report, indent=2, ensure_ascii=False))
+    save_json(
+        run_dir / "status.json",
+        {
+            "status": "completed",
+            "epochs_completed": len(history),
+            "blind_test_evaluated": False,
+            "final_scientific_evaluation_completed": False,
+        },
+    )
     return report
 
 
@@ -246,6 +346,8 @@ def main():
     parser.add_argument("--expected-fingerprint")
     parser.add_argument("--pilot-train-per-municipality", type=int, default=0)
     parser.add_argument("--pilot-val-limit", type=int, default=0)
+    parser.add_argument("--resume-run", type=Path)
+    parser.add_argument("--run-mode", choices=("pilot", "training"), default="pilot")
     parser.add_argument("--output", type=Path, default=Path("artifacts/rgi_runs"))
     # Nao disponibilizar --evaluate-test aqui: evitar vazamento acidental.
     args = parser.parse_args()
@@ -269,6 +371,8 @@ def main():
         device_name=args.device,
         pilot_train_per_municipality=args.pilot_train_per_municipality,
         pilot_val_limit=args.pilot_val_limit,
+        resume_run=args.resume_run,
+        run_mode=args.run_mode,
     )
 
 

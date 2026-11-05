@@ -243,3 +243,4 @@ artifacts/
 *.pt
 *.pth
 *.onnx
+.umamba_runtime/

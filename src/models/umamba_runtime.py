@@ -125,8 +125,8 @@ def stack_needs_restart() -> bool:
     return installed is None or not installed.startswith(TORCH_LOCAL_PREFIX)
 
 
-def install_prebuilt_colab_stack() -> bool:
-    """Instala o stack binário do Colab.
+def install_torch_stack() -> bool:
+    """Alinha PyTorch/vision/audio para a comparação sem instalar Mamba.
 
     Retorna True quando o PyTorch foi alterado e o kernel deve ser reiniciado.
     """
@@ -165,6 +165,12 @@ def install_prebuilt_colab_stack() -> bool:
                 TORCH_INDEX_URL,
             ])
 
+    return torch_changed
+
+
+def install_prebuilt_colab_stack() -> bool:
+    """Prepara o stack fixado completo; retorna se o PyTorch foi alterado."""
+    torch_changed = install_torch_stack()
     if _installed_version("dynamic-network-architectures") != DNA_VERSION:
         _pip_install([f"dynamic-network-architectures=={DNA_VERSION}"])
 

@@ -1,5 +1,11 @@
 # Guia de execução — Kaggle (RGI Guaxupé)
 
+O fluxo de partida atualizado está em [INICIAR_KAGGLE.md](INICIAR_KAGGLE.md)
+e no notebook `13_kaggle_training.ipynb`. Utilizar esse fluxo com a divisão
+espacial v1 (89/20/20/77), sem copiar os comandos históricos abaixo que usam
+somente a main ou descrevem a divisão como candidata. A disponibilidade de
+GPU/cota é verificada na conta; o código aborta se CUDA estiver indisponível.
+
 ## Por que Kaggle?
 
 Utilizar GPUs Kaggle é uma opção razoável diante das cotas do Colab.

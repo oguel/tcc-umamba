@@ -75,6 +75,12 @@ O script realiza uma atualização de uma U-Net compacta em CPU com raster sint�
 
 ## Estado atual
 
+Para preparar o espaço no Kaggle e iniciar a execução, usar o
+[notebook 13](notebooks/13_kaggle_training.ipynb) e o
+[guia de partida e retomada](docs/INICIAR_KAGGLE.md).
+Há checkpoint por época, retomada e preflight de dados/CUDA; a execução remota
+ainda precisa ser validada na conta do Kaggle.
+
 Revisão espacial v1: validação com quatro patches de cada município, teste
 anterior preservado e margem de 1km. A divisão computacional congelada tem
 89 treino / 20 validação / 20 teste / 77 purgados, para pilotos.
