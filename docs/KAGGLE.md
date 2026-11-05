@@ -58,7 +58,7 @@ o kernel se o PyTorch mudar. Não misturar versões do
 
 O runner reserva teste espacial, validação espacial e treino sobre os
 mesmos pares regionais; repita com as duas arquiteturas e mesma semente.
-O teste está **bloqueado por padrão**; a opção `--evaluate-test` deve ser usada só após congelar o protocolo. O teste de 2 épocas é apenas um *smoke test*. Não publicar métricas
+A avaliação do teste cego foi retirada do comando de treinamento. Será implementado um avaliador independente após congelar protocolo e pesos. O teste de 2 épocas é apenas um *smoke test*. Não publicar métricas
 como resultados finais antes da campanha de treino controlada.
 
 Salvar do diretório `/kaggle/working/tcc_rgi/` os pesos, métricas e
