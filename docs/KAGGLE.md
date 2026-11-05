@@ -38,7 +38,7 @@ Conferir visualmente que:
 - `tres_pontas_2024` foi excluído;
 - CRS, resoluções, canais e máscaras estão corretos;
 - nenhuma máscara contém rótulos diferentes de 0, 1 e 255;
-- os cinco folds espaciais têm dados de treino e validação.
+- a divisao regional candidata tem treino, validacao, teste fechado e descartes nao vazios; nao usar o teste no piloto.
 
 Depois executar teste piloto U-Net, primeiro com épocas curtas:
 
