@@ -50,56 +50,68 @@ def _identical_files(a: Path, b: Path) -> bool:
 
 def find_rgi_pairs(
     dataset_root: str | Path,
-    variant: str = "Patches_P512_S300_NN_Fora0_M0",
+    variant: str = "Patches_P512_S300_NN",
     include_external: bool = False,
 ) -> list[RasterPair]:
-    """Localiza pares de mesma identidade; nunca combina variantes distintas.
+    """Combina LOGICAMENTE partes 001/002, sem copiar/alterar arquivos originais.
 
-    Aceita raiz contendo os arquivos originais Municipios-*/Municipios/* ou
-    uma exportação reorganizada em Municipios/*.
+    As partes do lote espalham imagens e máscaras de um mesmo patch por
+    diretórios DIFERENTES. Portanto é incorreto emparelhar dentro de cada
+    pasta antes de reunir os nomes globalmente.
+
+    Cada identidade de patch é (município_ano, nome_do_arquivo). A variante
+    Fora0_M0 não deve ser combinada à NN: representam os MESMOS recortes.
     """
     root = Path(dataset_root)
     if not root.exists():
         raise FileNotFoundError(f"Base RGI não encontrada: {root}")
-    pairs: dict[tuple[str, str], RasterPair] = {}
-    for images_dir in sorted(root.rglob("Imagens_Individuais")):
-        if images_dir.parent.name != variant:
-            continue
-        masks_dir = images_dir.parent / "Mascaras_Individuais"
-        if not masks_dir.is_dir():
-            raise FileNotFoundError(f"Máscaras ausentes: {masks_dir}")
-        municipality = images_dir.parent.parent.name
-        geographic_name = municipality.rsplit("_", 1)[0]
-        if not include_external and geographic_name not in RGI_GUAXUPE_MUNICIPALITIES:
-            # Três Pontas pertence à RGI 310046; não contaminar RGI 310044.
-            continue
-        image_paths = {p.name: p for p in images_dir.glob("*.tif")}
-        mask_paths = {p.name: p for p in masks_dir.glob("*.tif")}
-        missing = sorted(image_paths.keys() ^ mask_paths.keys())
-        if missing:
-            raise ValueError(f"Imagens/máscaras sem par em {municipality}: {missing[:10]}")
-        for name in sorted(image_paths):
-            key = (municipality, name)
-            current = RasterPair(image_paths[name], mask_paths[name], municipality)
-            if key in pairs:
-                previous = pairs[key]
-                if not (
-                    _identical_files(previous.image, current.image)
-                    and _identical_files(previous.mask, current.mask)
-                ):
-                    raise ValueError(
-                        f"Patch {key} existe em mais de uma parte com conteúdo diferente. "
-                        "Conferir manualmente antes de treinar."
-                    )
+
+    def collect(leaf_name: str) -> dict[tuple[str, str], Path]:
+        found: dict[tuple[str, str], Path] = {}
+        for folder in sorted(root.rglob(leaf_name)):
+            if not folder.is_dir() or folder.parent.name != variant:
                 continue
-            pairs[key] = current
-    if not pairs:
+            municipality = folder.parent.parent.name
+            geographic_name = municipality.rsplit("_", 1)[0]
+            if (
+                not include_external
+                and geographic_name not in RGI_GUAXUPE_MUNICIPALITIES
+            ):
+                continue
+            for path in sorted(folder.glob("*.tif")):
+                key = (municipality, path.name)
+                old_path = found.get(key)
+                if old_path is not None:
+                    if not _identical_files(old_path, path):
+                        raise ValueError(
+                            f"Arquivos divergentes para o patch {key} na variante "
+                            f"{variant}: {old_path} vs {path}"
+                        )
+                    continue
+                found[key] = path
+        return found
+
+    images = collect("Imagens_Individuais")
+    masks = collect("Mascaras_Individuais")
+    if not images and not masks:
         raise ValueError(
             f"Nenhum par GeoTIFF encontrado em {root} na variante {variant}. "
-            "Monte/descompacte os arquivos Municipios do Drive em /kaggle/input."
+            "Informe a raiz que contém os dois pacotes Municipios-...-001/002."
         )
-    return list(pairs.values())
+    without_mask = sorted(images.keys() - masks.keys())
+    without_image = sorted(masks.keys() - images.keys())
+    if without_mask or without_image:
+        raise ValueError(
+            "O conjunto parece incompleto. É obrigatório incluir AMBAS "
+            "as partes 001 e 002 do pacote Municipios. "
+            f"Sem máscara (exemplos): {without_mask[:6]}; "
+            f"sem imagem (exemplos): {without_image[:6]}"
+        )
 
+    return [
+        RasterPair(image=images[key], mask=masks[key], municipality=key[0])
+        for key in sorted(images)
+    ]
 
 def validate_mask_values(mask: np.ndarray) -> None:
     """Não permite binarização por threshold: 255 nunca é café."""
