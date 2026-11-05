@@ -13,6 +13,7 @@ from pathlib import Path
 import numpy as np
 
 from src.data.emater_dataset import find_rgi_pairs, validate_mask_values
+from src.data.rgi_fingerprint import dataset_fingerprint
 from src.data.rgi_geographic_holdout import regional_split
 
 
@@ -146,6 +147,8 @@ def audit(root: Path, sample_limit: int = 0) -> dict:
         "radiometric_offsets": dict(offsets),
         "pixel_counts_effective": dict(totals),
         "candidate_spatial_holdout": split_info,
+        "dataset_fingerprint": dataset_fingerprint(checked),
+        "fingerprint_scope": "full" if len(checked) == len(pairs) else "partial",
         "warnings": warnings,
         "preflight_approved": not warnings and bool(split_info) and len(checked) == len(pairs),
         "per_patch": per_patch,
@@ -158,6 +161,10 @@ def main() -> None:
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--sample-limit", type=int, default=0)
     parser.add_argument("--output", type=Path)
+    parser.add_argument(
+        "--expected-fingerprint",
+        help="SHA256 obtido na auditoria anterior; falha se o dataset for diferente.",
+    )
     args = parser.parse_args()
     report = audit(args.root, args.sample_limit)
     result = json.dumps(report, ensure_ascii=False, indent=2)
