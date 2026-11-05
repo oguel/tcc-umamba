@@ -1,4 +1,5 @@
 """Regressão: bordas Fora0_M0 não são verdadeiros negativos."""
+
 from __future__ import annotations
 
 import numpy as np
@@ -38,8 +39,16 @@ def _write_pair(tmp_path, *, offset="-1000", descriptions=True):
         dst.update_tags(BOA_ADD_OFFSET=offset)
         if descriptions:
             dst.descriptions = (
-                "B02", "B03", "B04", "B08", "B05",
-                "B06", "B07", "B8A", "B11", "B12",
+                "B02",
+                "B03",
+                "B04",
+                "B08",
+                "B05",
+                "B06",
+                "B07",
+                "B8A",
+                "B11",
+                "B12",
             )
     with rasterio.open(
         mask_path,
