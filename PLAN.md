@@ -1,148 +1,112 @@
-# PLAN.md — Roteiro de Implementação
+# Plano de implementação e validação — TCC U-Mamba / RGI Guaxupé
 
-Roteiro prático do TCC **Segmentação Semântica de Lavouras Cafeeiras no Sudoeste Mineiro: Aplicação da Arquitetura Híbrida U-Mamba com Dados de Sensoriamento Remoto**.
+Atualizado em 05/11/2026. O plano **não** afirma que o treino oficial já ocorreu.
 
-## 1. Objetivo técnico
+## Objetivo e limites
 
-Construir um pipeline reproduzível para segmentação binária de **Café** e **Não-Café**, usando U-Net como baseline e U-Mamba como arquitetura principal.
+Comparar U-Mamba (arquitetura principal) com U-Net (baseline) na segmentação
+binária café / não-café nos **recortes disponíveis da RGI de Guaxupé (310044)**.
+A unidade científica é o **conjunto regional agregado**: município identifica
+origem, não define um treinamento separado. Uma nova cena Sentinel-2 usada
+posteriormente para inferência não integra o teste cego.
 
-## 2. Princípios
+Os nove municípios da RGI são Arceburgo, Cabo Verde, Guaranésia, Guaxupé,
+Juruaia, Monte Belo, Muzambinho, Nova Resende e São Pedro da União.
+O lote recebido cobre cinco deles. Três Pontas não integra a RGI e fica
+separado para possível validação externa adicional.
 
-- O Google Drive em `MyDrive/tcc/` é o armazenamento canônico para dados, pesos e resultados.
-- O GitHub armazena código, configuração, notebooks e testes, não grandes datasets.
-- Todo resultado apresentado deve ser produzido por execução real do pipeline.
-- U-Net e U-Mamba devem usar, sempre que possível, os mesmos dados, divisões, métricas e protocolo de avaliação.
-- Credenciais nunca são versionadas.
+## Fonte de verdade do experimento
 
-## 3. Área e dados
+- Drive: `MyDrive/tcc/00_DADOS_OFICIAIS_RGI_GUAXUPE/Municipios` e `Cenas`.
+- Lote observado: seis conjuntos, 285 patches selecionados; 206 candidatos
+  dentro da RGI, 79 de Três Pontas. A contagem deve ser revalidada integralmente.
+- Imagens: GeoTIFF de 10 bandas Sentinel-2, DN uint16, EPSG:32723,
+  metadados de fonte/BOA_ADD_OFFSET, dimensão 512x512, stride 300.
+- Referência supervisionada: máscaras derivadas dos dados EMATER, valores
+  0=não-café, 1=café, 255=ignorar. A variante Fora0_M0 também
+  codifica pixels sem imagem como 0: o leitor marca estes pixels como 255.
+- Não misturar variantes alternativas do mesmo patch, anos e cenas de modo
+  indiscriminado. Não copiar dados de parceiros para repositórios públicos.
+- Históricos antigos em `02_HISTORICO_TESTES` NÃO entram nos resultados finais.
 
-- RGI de Guaxupé – MG.
-- Código IBGE correto: `310044`.
-- Sentinel-2 SR Harmonized.
-- Bandas: B2, B3, B4 e B8.
-- Resolução: 10 m.
-- Patch principal: 256 × 256.
-- Classes: Café = 1; Não-Café = 0.
+## Ordem operacional — fases e condições de avanço
 
-## 4. Fases
+| Fase | Passo e resultado | Bloqueio para avançar |
+| --- | --- | --- |
+| 0 | Confirmar proveniência e licença, conferir os 5 pacotes originais | Arquivos/uso não autorizados |
+| 1 | Inventariar GeoTIFF/CSV/JSON, SHA256, par imagem-máscara, variantes e duplicatas | Pares ausentes ou variantes conflitantes |
+| 2 | Rodar `scripts.validate_emater_rgi` integralmente e persistir relatório | CRS, bands, DN, offset, rótulos ou nodata divergentes |
+| 3 | Auditar visualmente mosaicos, bounds, proporções de café/não-café e bordas/áreas ignoradas | Artefatos/rotulagem incorretos |
+| 4 | Corrigir viés de exemplos positivos, adicionar áreas comprovadamente não-café | Sem negativos confiáveis |
+| 5 | Congelar versão/fingerprint do conjunto e uma área de teste espacial intocável | Vazamento/overlap de teste |
+| 6 | Dividir dados restantes para seleção/validação espacial, verificar tamanho de blocos | Treino/val vazios ou sobrepostos |
+| 7 | Preparar runtime GPU/PyTorch/CUDA, smoke test de U-Net e U-Mamba em 512x512 | Kernel incompatível, OOM, NaN |
+| 8 | Treinar comparativamente com mesma fonte, folds, bandas, hiperparâmetros e sementes | Orçamentos de treino não comparáveis |
+| 9 | Congelar melhores modelos, realizar uma avaliação no teste cego | Teste já reutilizado em tuning |
+| 10 | Produzir mapas, matriz de confusão, CSV/JSON, gráficos, métricas e custo computacional | Artefatos sem rastreabilidade |
+| 11 | Auditar resultados, executar análise espacial/temporal, arquivar pacote reprodutível | Ausência de código/config/manifest |
+| 12 | Só depois: inferência em novas cenas Sentinel-2 e redação final | Não confundir com treino/teste |
 
-### Fase A — Dataset experimental inicial
+**Importante**: o script atual reserva treino/val/test por blocos; ainda
+**não implementa uma campanha completa de 5-fold com teste independente**.
+Para apresentar média/desvio de 5 folds, desenvolver e executar essa rotina
+sobre os dados remanescentes, sem reutilizar o teste final.
 
-Objetivo: provar que o pipeline de treinamento e inferência funciona antes de depender da aquisição completa via GEE.
+## Segurança e validade
 
-- validar imagens e máscaras existentes;
-- binarizar máscaras;
-- conferir pares imagem/máscara;
-- calcular proporção de classe;
-- executar U-Net baseline;
-- salvar pesos, métricas e previsões no Drive.
+- Nenhum pixel de NoData entra em loss ou métricas; um valor de máscara 0
+  fora do mosaico não é um exemplo verdadeiro de não-café.
+- Patch 512/stride300 sobrepõe outros patches; um split aleatório por arquivo
+  é inválido. Excluir interseções treino↔val↔teste e evitar pontuar múltiplas
+  vezes o mesmo pixel na avaliação regional final.
+- Exigir exemplos negativos com rótulos confiáveis e representatividade
+  de mata, pastagem, solo, água e sombras (quando disponíveis).
+- Não inventar métricas. IoU/F1 dos testes antigos são apenas depuração.
+- Fixar seed, código (SHA de commit), fingerprint de dados, origem e versão
+  do raster, definições de classes, estatísticas normalizadas obtidas
+  **apenas do treino**, VRAM e nome da GPU.
+- `--evaluate-test` é exclusivamente para avaliação final. O teste fica
+  fechado durante tuning, varredura de hiperparâmetros e ensaios de notebook.
+- O código é portátil: Colab, Kaggle ou outro ambiente CUDA compatível;
+  scripts aceitam caminhos de entrada/saída. A compatibilidade de U-Mamba
+  deve ser testada em cada combinação de Python/PyTorch/CUDA/Mamba.
 
-### Fase B — Aquisição e preparação geoespacial
-
-- configurar Google Cloud / Earth Engine;
-- obter geometria da RGI;
-- montar mosaicos Sentinel-2;
-- aplicar máscara de nuvens;
-- obter/refinar ground truth;
-- alinhar raster e máscara;
-- normalizar as bandas;
-- gerar patches;
-- gerar manifesto de dados;
-- definir divisão espacial para evitar vazamento.
-
-### Fase C — Baseline U-Net
-
-- implementar Dataset/DataLoader;
-- implementar U-Net;
-- usar BCE + Dice Loss inicialmente;
-- AdamW;
-- acompanhar IoU, F1, Precision e Recall;
-- salvar melhor checkpoint;
-- produzir previsões qualitativas.
-
-### Fase D — U-Mamba
-
-- validar combinação Python/PyTorch/CUDA;
-- instalar dependências Mamba compatíveis;
-- adaptar U-Mamba para entrada multiespectral de 4 canais;
-- saída binária de 1 canal;
-- treinar com o mesmo protocolo do baseline;
-- registrar uso de VRAM e tempo por época/inferência.
-
-### Fase E — Avaliação
-
-- matriz de confusão;
-- IoU;
-- F1/Dice;
-- Precision;
-- Recall;
-- Acurácia Global;
-- erros de omissão e comissão;
-- comparação de custo computacional;
-- análise visual de regiões com sombra, mata e bordas de talhões.
-
-## 5. Notebooks
-
-### Existentes / preparação de dados
-
-- `00_setup_environment.ipynb`
-- `01_gee_sentinel2_acquisition.ipynb`
-- `02_gee_reference_masks.ipynb`
-- `03_mask_sources_comparison.ipynb`
-- `04_mask_finalization.ipynb`
-- `05_preprocessing.ipynb`
-- `06_patch_generation.ipynb`
-- `07_spatial_kfold_split.ipynb`
-- `08_dataset_eda.ipynb`
-
-### A criar
-
-- `09_embrapa_dataset_validation.ipynb`
-- `10_unet_baseline.ipynb`
-- `11_umamba_environment.ipynb`
-- `12_umamba_training.ipynb`
-- `13_model_evaluation.ipynb`
-- `14_efficiency_analysis.ipynb`
-- `15_qualitative_results.ipynb`
-
-## 6. Estrutura de código alvo
+## Estrutura recomendada para cada rodada (não sobrescrever)
 
 ```text
-src/
-├── data/
-│   ├── gee_client.py
-│   ├── preprocessing.py
-│   ├── patch_generation.py
-│   ├── spatial_split.py
-│   └── dataset.py
-├── models/
-│   ├── unet.py
-│   └── umamba.py
-├── losses.py
-├── metrics.py
-├── trainer.py
-├── config.py
-├── config.yaml
-├── io.py
-└── utils.py
+MyDrive/tcc/artifacts/official_rgi/
+  dataset_versions/<fingerprint>/{manifest,qa,normalization,splits}/
+  runs/<run_id>/
+    metadata.json          # commit, configuração, hardware, dados
+    splits.json            # identidade dos patches em cada divisão
+    history.csv            # uma linha por época
+    metrics.json           # métrica + denominadores
+    best_model.pt
+    last_model.pt          # para retomar após interrupção
+    predictions/           # TIFF e metadados geográficos
+    figures/               # RGB/GT/Pred; TP/FP/FN; curvas; confusão
+  comparisons/<study_id>/
+    aggregated_metrics.csv
+    paired_comparison.csv
+    figures/
+    REPORT.md
 ```
 
-## 7. Ordem imediata de trabalho
+**Implementação atual:** runner salva histórico, métricas, split e melhor
+checkpoint em pasta de execução única. Persistência de último checkpoint,
+`predictions/`, figuras, avaliação por pixels geográficos únicos,
+comparação estatística e retomada ainda são itens de desenvolvimento
+antes da campanha definitiva.
 
-1. limpar referências herdadas do projeto anterior;
-2. validar o dataset experimental;
-3. executar U-Net baseline;
-4. gerar primeiros resultados reais;
-5. configurar Earth Engine;
-6. consolidar o dataset Sentinel-2;
-7. integrar U-Mamba.
+## Referências de implementação
 
-## 8. Critério de sucesso da primeira etapa
+- `docs/PROTOCOLO_DEFINITIVO_RGI.md` — contrato do lote e desenho regional.
+- `docs/KAGGLE.md` — *exemplo* de execução na nuvem, não plataforma obrigatória.
+- `scripts/validate_emater_rgi.py` — preflight de imagem, máscara e split.
+- `scripts/train_emater_rgi.py` — piloto portável com teste final fechado.
+- `src/data/emater_dataset.py` — loader tif e rótulos 0/1/255.
+- `src/data/emater_spatial.py` — blocos espaciais com descarte de overlap.
 
-A primeira etapa está concluída quando for possível executar um notebook do início ao fim e obter:
-
-- loss de treinamento/validação;
-- IoU e F1 em teste;
-- checkpoint salvo;
-- figura contendo imagem original, ground truth e previsão;
-- todos os artefatos gravados em `MyDrive/tcc/`.
+A monografia e o projeto de pesquisa devem ser atualizados **após** o
+congelamento da metodologia e de dados realmente executados. Preservar os
+documentos originais e as três referências do João para posterior consulta.

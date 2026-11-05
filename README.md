@@ -36,7 +36,7 @@ Os treinamentos exploratórios de setembro com imagens antigas foram testes de f
 ## Reprodução do dataset regional no Kaggle
 
 1. Criar um dataset privado no Kaggle com cópia fiel de `Municipios/`, após verificar as permissões de uso dos dados.
-2. Ativar **GPU T4 x2**, se disponível; não configurar P100 (retirada da plataforma em setembro de 2026).
+2. Selecionar uma GPU compatível, conforme a disponibilidade e a cota da conta.
 3. Clonar este repositório (ou anexá-lo como código) e instalar dependências da U-Net/dados com `pip install -r requirements-runtime.txt`.
 4. No diretório-raiz do repositório, auditar os dados:
 
@@ -66,7 +66,7 @@ A documentação técnica está em [docs/PROTOCOLO_DEFINITIVO_RGI.md](docs/PROTO
 
 ## Estado atual
 
-A implementação da leitura da base EMATER, exclusão de `ignore_index=255`, divisão espacial, scripts Kaggle e testes automatizados está em desenvolvimento na branch `feat/dataset-rgi-emater-kaggle-20261105`. **Não há resultados oficiais de treinamento neste conjunto confirmados ainda.**
+O pipeline oficial está na branch principal `main`. Os scripts são independentes de plataforma e os caminhos de entrada/saída são configuráveis. **Não há resultados oficiais de treinamento com o novo conjunto confirmados ainda.**
 
 ## Tecnologias
 

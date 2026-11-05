@@ -140,6 +140,25 @@ class EMATERRGIDataset(Dataset):
             if src.count < max(self.band_indexes):
                 raise ValueError(f"Bandas insuficientes em {pair.image}")
             image = src.read(self.band_indexes)
+            valid_image = np.all(src.read_masks(self.band_indexes) > 0, axis=0)
+            # A variante Fora0_M0 traz pixels externos ao município com
+            # imagem=0 e MÁSCARA=0 (não-café). São regiões sem observação,
+            # nunca negativos verdadeiros; ambos precisam sair do loss.
+            valid_image &= np.all(image != 0, axis=0)
+            expected_bands = ("B02", "B03", "B04", "B08")
+            actual_bands = tuple(src.descriptions[i - 1] for i in self.band_indexes)
+            if self.band_indexes == (1, 2, 3, 4) and actual_bands != expected_bands:
+                raise ValueError(f"Ordem de bandas inesperada em {pair.image}: {actual_bands}")
+            if image.dtype != np.dtype("uint16"):
+                raise ValueError(
+                    f"Imagens Sentinel-2 oficiais devem conter DN uint16: {pair.image}"
+                )
+            try:
+                offset = float(src.tags()["BOA_ADD_OFFSET"])
+            except (KeyError, TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"BOA_ADD_OFFSET ausente/inválido no GeoTIFF: {pair.image}"
+                ) from exc
             image_bounds = src.bounds
             image_crs = src.crs
             image_transform = src.transform
@@ -156,6 +175,8 @@ class EMATERRGIDataset(Dataset):
         if image.shape[1:] != mask.shape:
             raise ValueError(f"Dimensões não coincidem em {pair.image}")
         validate_mask_values(mask)
-        image = normalize_sentinel_dn(image)
-        # O índice 255 é preservado; a função de perda/métricas o exclui.
+        mask = mask.copy()
+        mask[~valid_image] = 255
+        image = normalize_sentinel_dn(image, offset=offset)
+        # 255 inclui borda/nodata de imagem mesmo se a máscara vier com valor 0.
         return torch.from_numpy(image.copy()), torch.from_numpy(mask.astype(np.float32)[None])

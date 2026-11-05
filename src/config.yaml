@@ -116,7 +116,7 @@ official_dataset:
     folds: 5
     block_size_m: 15000
     seed: 42
-  training_platform: "kaggle"
+  execution: "portable" # mesmo codigo pode rodar local, Colab ou Kaggle com dependencias adequadas
   comparison_models: ["unet", "umamba"]
   independent_test_required: true
   sentinel2_future_inference: true

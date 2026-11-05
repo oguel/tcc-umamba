@@ -39,6 +39,11 @@ def run_epoch(
 
             logits = model(images)
             loss = criterion(logits, masks)
+            if not torch.isfinite(loss).all():
+                raise FloatingPointError(
+                    "Loss NaN/Inf: verificar radiometria, rótulos, taxa de aprendizado "
+                    "e pixels válidos antes de continuar o treinamento."
+                )
 
             if optimizer is not None:
                 loss.backward()
@@ -76,9 +81,13 @@ def fit_model(
         if device.type == "cuda":
             torch.cuda.reset_peak_memory_stats(device)
 
+        if device.type == "cuda":
+            torch.cuda.synchronize(device)
         start = time.perf_counter()
         train_metrics = run_epoch(model, train_loader, criterion, device, optimizer)
         val_metrics = run_epoch(model, val_loader, criterion, device)
+        if device.type == "cuda":
+            torch.cuda.synchronize(device)
         elapsed = time.perf_counter() - start
 
         peak_vram_mb = 0.0
