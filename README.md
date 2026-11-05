@@ -1,142 +1,77 @@
-# Trabalho de Conclusão de Curso – Bacharelado em Ciência da Computação (IFSULDEMINAS)
+# TCC — Segmentação Semântica de Lavouras Cafeeiras na RGI de Guaxupé
 
-## Segmentação Semântica de Lavouras Cafeeiras no Sudoeste Mineiro: Aplicação da Arquitetura Híbrida U-Mamba com Dados de Sensoriamento Remoto
+Bacharelado em Ciência da Computação, IFSULDEMINAS — Campus Muzambinho.
 
-Projeto de TCC voltado à segmentação semântica binária de lavouras cafeeiras na Região Geográfica Imediata de Guaxupé – MG, utilizando imagens Sentinel-2 e a arquitetura híbrida U-Mamba.
+**Comparação principal:** U-Mamba versus U-Net (baseline) para segmentação binária de café e não-café. A unidade experimental é **a Região Geográfica Imediata de Guaxupé (MG, código 310044)**, e **não** um treinamento separado por município.
 
-## Objetivo
+## Fonte oficial dos experimentos (a partir de novembro de 2026)
 
-Analisar o comportamento e a viabilidade da arquitetura U-Mamba na segmentação das classes **Café** e **Não-Café**, comparando seu desempenho com uma U-Net utilizada como baseline convolucional.
-
-## Área de estudo
-
-- Região Geográfica Imediata de Guaxupé – MG.
-- Código IBGE da RGI: `310044`.
-- Municípios de interesse: Guaxupé, Guaranésia, Muzambinho, Cabo Verde, Juruaia, Arceburgo, Monte Santo de Minas, São Pedro da União e Jacuí.
-
-## Dados
-
-### Dataset experimental inicial
-
-O projeto possui um conjunto inicial fornecido para testes, com imagens e máscaras já separadas em treino, validação e teste. Esse conjunto é usado para validar o pipeline e produzir os primeiros experimentos.
-
-### Dataset geoespacial definitivo
-
-A base definitiva será construída com:
-
-- Sentinel-2 Level-2A / Surface Reflectance Harmonized;
-- bandas B2, B3, B4 e B8;
-- resolução espacial de 10 m;
-- recorte da RGI de Guaxupé;
-- máscaras de referência e posterior refinamento do ground truth;
-- patches de 256 × 256 pixels para treinamento.
-
-## Arquiteturas
-
-- **U-Net**: baseline convolucional.
-- **U-Mamba**: arquitetura principal do TCC, combinando extração local convolucional com blocos de State Space Models (SSM/Mamba) para contexto espacial de longo alcance.
-
-## Métricas
-
-Serão acompanhadas:
-
-- IoU / Índice de Jaccard;
-- F1-Score / Dice;
-- Precision;
-- Recall;
-- Acurácia Global;
-- matriz de confusão;
-- erros de omissão e comissão;
-- uso de VRAM e tempo de processamento.
-
-## Organização
-
-```text
-tcc-umamba/
-├── notebooks/                # etapas experimentais em Jupyter/Colab
-├── src/                      # código Python reutilizável
-│   ├── data/                 # aquisição e preparação dos dados
-│   ├── models/               # U-Net e U-Mamba
-│   ├── config.py
-│   ├── config.yaml
-│   ├── io.py
-│   └── utils.py
-├── tests/                    # testes unitários
-├── data/external/            # pequenos dados de referência versionados
-├── scripts/
-├── README.md
-├── PLAN.md
-└── pyproject.toml
-```
-
-Os arquivos grandes não são armazenados no GitHub. O armazenamento canônico do projeto é:
+A fonte principal são as novas pastas `Municipios` e `Cenas` fornecidas para o TCC e armazenadas no Google Drive:
 
 ```text
 MyDrive/tcc/
-├── data/
-│   ├── raw/
-│   ├── interim/
-│   ├── processed/
-│   └── embrapa/
-├── models/
-│   ├── unet/
-│   └── umamba/
-├── artifacts/
-│   ├── metrics/
-│   ├── figures/
-│   └── runs/
-├── repo/
-└── secrets/
+  00_DADOS_OFICIAIS_RGI_GUAXUPE/
+    Municipios/       # downloads fracionados, GeoTIFFs e máscaras
+    Cenas/            # cenas e metadados de origem
+  01_DOCUMENTACAO_TCC/
+  02_HISTORICO_TESTES/
+  03_REFERENCIAS_MONOGRAFIA/
+  data/               # legado do pipeline; preservar
+  models/             # checkpoints EXPLORATÓRIOS, não definitivos
+  artifacts/          # métricas EXPLORATÓRIAS, não definitivas
+  repo/               # espelho/cópia do código
+  secrets/            # nunca versionar credenciais
 ```
 
-## Pipeline
+O lote contém recortes georreferenciados **512×512** com `stride=300`, e máscaras com `0=não-café`, `1=café` e `255=ignorar`. Nunca usar no lote novo a conversão PNG antiga `(mask > 127)`.
 
-```text
-Sentinel-2 / dados experimentais
-        ↓
-pré-processamento
-        ↓
-máscaras binárias
-        ↓
-patches
-        ↓
-divisão treino/validação/teste ou divisão espacial
-        ↓
-U-Net baseline
-        ↓
-U-Mamba
-        ↓
-IoU / F1 / Precision / Recall
-        ↓
-análise qualitativa e eficiência computacional
+As pastas disponíveis estão organizadas por município/ano **apenas para procedência dos dados**. O treinamento agrega os recortes válidos da RGI. **Três Pontas não integra a RGI de Guaxupé** e fica reservado para possível avaliação externa, não para treino/validação/teste principal.
+
+> Atenção sobre a origem: os metadados de cenas disponíveis apontam para Sentinel-2, enquanto as máscaras são descritas como EMATER. Registrar com precisão a proveniência de imagens e rótulos antes da redação científica. A **inferência regional em futuras cenas Sentinel-2** continua uma etapa posterior, não um resultado já obtido.
+
+## Histórico separado
+
+Os treinamentos exploratórios de setembro com imagens antigas foram testes de funcionamento do pipeline, não a avaliação do TCC. Não comparar seus números diretamente com futuras métricas da base definitiva. Os arquivos de teste foram preservados no Drive.
+
+## Reprodução do dataset regional no Kaggle
+
+1. Criar um dataset privado no Kaggle com cópia fiel de `Municipios/`, após verificar as permissões de uso dos dados.
+2. Ativar **GPU T4 x2**, se disponível; não configurar P100 (retirada da plataforma em setembro de 2026).
+3. Clonar este repositório (ou anexá-lo como código) e instalar dependências da U-Net/dados com `pip install -r requirements-runtime.txt`.
+4. No diretório-raiz do repositório, auditar os dados:
+
+```bash
+python -m scripts.validate_emater_rgi --root /kaggle/input/NOME_DO_DATASET --output /kaggle/working/auditoria_rgi.json
 ```
 
-## Execução prevista
+5. Após a auditoria, executar um treino piloto da U-Net:
 
-1. preparar o ambiente;
-2. validar o dataset experimental;
-3. executar uma U-Net baseline;
-4. configurar o pipeline Sentinel-2 no Google Earth Engine;
-5. gerar e validar patches multiespectrais;
-6. preparar o ambiente compatível com U-Mamba;
-7. treinar e avaliar U-Mamba;
-8. comparar U-Net e U-Mamba;
-9. gerar figuras, métricas e artefatos para o TCC.
+```bash
+python -m scripts.train_emater_rgi --root /kaggle/input/NOME_DO_DATASET --model unet --epochs 2 --output /kaggle/working/tcc_rgi
+```
 
-## Tecnologias
+6. Para treinar a U-Mamba, primeiro verificar e preparar o runtime CUDA+Mamba fixado no projeto. **Não assumir que a wheel validada anteriormente em Colab funcionará automaticamente no Kaggle.**
 
-- Python;
-- PyTorch;
-- Google Colab / Kaggle;
-- Google Earth Engine;
-- Google Drive;
-- Rasterio / GeoPandas;
-- Hugging Face Hub para publicação e armazenamento de artefatos quando necessário.
+A documentação técnica está em [docs/PROTOCOLO_DEFINITIVO_RGI.md](docs/PROTOCOLO_DEFINITIVO_RGI.md) e [docs/KAGGLE.md](docs/KAGGLE.md).
+
+## Metodologia
+
+- **Modelos:** U-Net e U-Mamba, saída de um canal (Café versus Não-Café).
+- **Canais iniciais de imagem:** B02, B03, B04, B08 (confirmar ordem espectral no raster).
+- **Pré-processamento:** DN/offset radiométrico da cena; máscaras com pixels ignorados em todos os cálculos.
+- **Divisão:** blocos espaciais e exclusão de sobreposição; holdout espacial de teste independente da validação.
+- **Critério:** IoU, Dice/F1, precisão, revocação, acurácia, matriz de confusão, tempo de época e VRAM.
+- **Reprodutibilidade:** guardar semente, configuração, ambiente e métricas de execução.
+- **Artefatos:** imagens e pesos fora do GitHub; apenas código, testes e documentação versionados.
 
 ## Estado atual
 
-A infraestrutura inicial do projeto foi criada a partir de uma base de pipeline geoespacial e está sendo adaptada para o objetivo específico deste TCC. A prioridade atual é validar os dados disponíveis com uma U-Net baseline e, em seguida, integrar a arquitetura U-Mamba.
+A implementação da leitura da base EMATER, exclusão de `ignore_index=255`, divisão espacial, scripts Kaggle e testes automatizados está em desenvolvimento na branch `feat/dataset-rgi-emater-kaggle-20261105`. **Não há resultados oficiais de treinamento neste conjunto confirmados ainda.**
+
+## Tecnologias
+
+Python, PyTorch, Rasterio, NumPy, NVIDIA CUDA/Mamba, Kaggle e Google Drive.
 
 ## Licença
 
-Partes do código-base reutilizado permanecem sob os termos da licença MIT original. Alterações e novos componentes deste projeto seguem a mesma licença, salvo indicação em contrário.
+Código sob licença MIT, respeitando as licenças de componentes terceiros; dados recebidos de parceiros **não** são implicitamente públicos.

@@ -1,0 +1,20 @@
+# Versões pinadas (mais recentes no PyPI em set/2026) instaladas pelo notebook 00
+# em TODAS as plataformas (Colab e Kaggle). Suportam Python 3.10+.
+torch==2.14.0
+torchvision==0.29.0
+transformers==5.17.0
+earthengine-api==1.7.43
+geopandas==1.1.4
+pyogrio==0.13.0
+huggingface-hub==1.32.0
+numpy==2.5.3
+pandas==3.0.6
+pyarrow==25.0.1
+scipy==1.18.1
+scikit-learn==1.9.1
+matplotlib==3.11.2
+seaborn==0.13.2
+rasterio==1.5.1
+pyyaml==6.0.3
+google-api-python-client==2.200.0
+google-auth-oauthlib==1.4.1

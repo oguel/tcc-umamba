@@ -1,103 +1,40 @@
-# Marco atual do TCC — Setembro/2026
+# Marco atual — 05/11/2026
 
-Este arquivo registra deliberadamente o ponto de parada do desenvolvimento prático atual.
+## Alteração de fase
 
-## Limite definido pelo cronograma
+Os experimentos realizados em setembro com imagens antigas estão encerrados como
+**testes exploratórios** (prova de execução da U-Net e U-Mamba). Nenhum resultado
+exploratório será apresentado como comparação científica definitiva.
 
-Até setembro, o cronograma prevê:
+## Novo objeto experimental
 
-- revisão bibliográfica e estado da arte;
-- delimitação geográfica e aquisição de dados;
-- pré-processamento e preparação do dataset;
-- baseline U-Net;
-- integração U-Mamba;
-- treinamento e validação métrica;
-- início da avaliação de eficiência;
-- início da análise crítica.
+- Região Geográfica Imediata de Guaxupé — código 310044.
+- Fonte: novos arquivos recebidos em `Municipios` e `Cenas`.
+- Recortes de 512×512, stride 300, GeoTIFF.
+- Máscara 0/1/255; pixels 255 são ignorados.
+- Recortes agregados em UM conjunto RGI para U-Net versus U-Mamba.
+- Três Pontas é extrarregional e não entra no resultado principal.
+- Kaggle é a plataforma preferencial para a próxima rodada de treinamento.
+- Sentinel-2 em novas datas para inferência futura é etapa posterior.
 
-O objetivo deste marco NÃO é concluir o TCC. O objetivo é obter um resultado parcial reproduzível com o dataset atualmente disponível e deixar a infraestrutura pronta para a continuação futura.
+## Infraestrutura preparada na branch de novembro
 
-## Situação atual
+- Reorganização conservadora dos diretórios principais do Google Drive.
+- Leitor GeoTIFF + filtro territorial + deduplicação.
+- Validação de pares, rótulos e georreferenciamento.
+- BCEDiceLoss e métricas que excluem `ignore_index=255`.
+- Divisão espacial com exclusão de sobreposição.
+- Scripts de auditoria e treino piloto da RGI.
+- Testes automatizados básicos.
+- Documentação de uso do Kaggle.
 
-### Estruturado
+## Pendências reais (não confundir com resultado concluído)
 
-- repositório independente `oguel/tcc-umamba`;
-- armazenamento canônico em `MyDrive/tcc/`;
-- pipeline geoespacial herdado e adaptado para o novo repositório;
-- dataset experimental localizado em `MyDrive/tcc/imagens/`;
-- validação de pares imagem/máscara;
-- U-Net baseline em PyTorch;
-- BCE + Dice Loss;
-- métricas IoU, F1, Precision, Recall, acurácia, omissão e comissão;
-- registro de tempo por época e pico de VRAM;
-- integração por adaptador com a classe oficial `UMambaEnc_2d`;
-- notebook de diagnóstico do ambiente U-Mamba.
-
-### Execução parcial planejada
-
-1. Executar `09_embrapa_dataset_validation.ipynb`.
-2. Executar `10_unet_baseline.ipynb`.
-3. Registrar os resultados reais da U-Net.
-4. Executar `11_umamba_environment.ipynb` em runtime dedicado.
-5. Se o smoke test passar, executar `12_umamba_partial_training.ipynb`.
-
-## Resultado mínimo esperado neste marco
-
-- tabela de integridade do dataset;
-- estatísticas das máscaras;
-- checkpoint da U-Net;
-- histórico de loss/IoU/F1;
-- métricas no teste;
-- figura Imagem | Ground Truth | Predição;
-- tempo por época e pico de VRAM;
-- diagnóstico documentado da integração U-Mamba;
-- treinamento U-Mamba curto apenas se o ambiente oficial estiver funcional.
-
-## Deliberadamente adiado
-
-- expansão definitiva do dataset Sentinel-2;
-- refinamento final de ground truth;
-- treinamento longo da U-Mamba;
-- busca de hiperparâmetros;
-- validação espacial definitiva;
-- comparação estatística final;
-- XAI avançada;
-- conclusões científicas finais;
-- publicação de dataset/modelos;
-- redação final e formatação ABNT.
-
-Essas etapas serão retomadas quando as novas imagens e a nova validação estiverem disponíveis.
-
-
-## Notebook de referência recebido
-
-Um notebook externo de classificação de folhas de café com Vision Transformer foi revisado como referência metodológica. Não deve ser copiado como arquitetura do TCC, porque trata de classificação e não de segmentação semântica.
-
-Ideias úteis para incorporar quando fizer sentido:
-- matriz de confusão visual;
-- benchmark de latência de inferência com warm-up e sincronização CUDA;
-- early stopping em treinamentos longos;
-- múltiplas seeds com média e desvio-padrão;
-- busca de hiperparâmetros com Optuna na fase definitiva.
-
-Fora do escopo atual:
-- Vision Transformer como modelo principal;
-- Attention Rollout;
-- PyTorch Mobile;
-- sistema de abstention;
-- pipeline de classificação RoCoLe/BraCoL.
-
-
-## Runtime U-Mamba atualizado
-
-O notebook 11 foi revisado após o primeiro diagnóstico em CPU. A preparação atual:
-
-- exige GPU CUDA ativa no Colab;
-- usa o PyTorch CUDA já fornecido pelo runtime atual;
-- instala `mamba-ssm` com backend CUDA usando `--no-build-isolation`;
-- fixa `dynamic-network-architectures==0.3.1`;
-- fixa a arquitetura oficial U-Mamba no commit `28459e33ca03769800dd35e23c6e62491d1925b5`;
-- prepara apenas `UMambaEnc_2d` para o experimento, removendo do runtime os imports/helpers de planejamento nnU-Net que não são necessários para instanciar a rede diretamente;
-- grava `artifacts/runs/umamba_environment.json` somente quando o smoke test passa.
-
-O notebook 12 também prepara esse ambiente automaticamente caso seja aberto em outra sessão Colab.
+1. Auditar todos os arquivos do lote recém-recebido (GeoTIFF/máscaras/metadados).
+2. Confirmar com a EMATER quais arquivos são imagens e quais são rótulos.
+3. Confirmar representatividade/cobertura da RGI e seleção de cenas.
+4. Validar os scripts com dados reais e executar os testes no runtime.
+5. Resolver compatibilidade da U-Mamba no Kaggle.
+6. Executar teste piloto de 2 épocas para U-Net, então treino comparável.
+7. Executar comparação científica com semente, folds, hiperparâmetros e métricas registradas.
+8. Depois: inferência em outras cenas Sentinel-2 e redação da monografia.

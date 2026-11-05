@@ -1,0 +1,71 @@
+# Protocolo experimental — RGI de Guaxupé (05/11/2026)
+
+## Escopo
+
+- **Um único experimento regional**, com todos os pares válidos da RGI agregados.
+- Os nomes de municípios/anos servem como **proveniência geográfica e temporal**,
+  não como seis treinamentos independentes.
+- **U-Net** é o baseline, **U-Mamba** a arquitetura principal.
+- Usar os mesmos folds espaciais, bandas, épocas e procedimentos de avaliação.
+- Os testes de setembro foram apenas diagnóstico de software; seus números não
+  são resultados definitivos da comparação.
+- Sentinel-2 como fluxo de **inferência futura** é uma etapa separada. Os metadados
+  de Cenas/Municipios deste lote citam cenas Sentinel-2; confirmar com a EMATER
+  a origem exata da imagem e do rótulo antes de escrever a metodologia final.
+
+## Dados recebidos
+
+Armazenamento canônico: `MyDrive/tcc/00_DADOS_OFICIAIS_RGI_GUAXUPE/`
+
+```text
+00_DADOS_OFICIAIS_RGI_GUAXUPE/
+  Municipios/
+    Municipios-20261104T135253Z-1-001/Municipios/
+    Municipios-20261104T135253Z-1-002/Municipios/
+  Cenas/
+    Cenas-20261104T135255Z-1-001/
+    Cenas-20261104T135255Z-1-002/
+    Cenas-20261104T135255Z-1-003/
+```
+
+Os nomes de pasta identificam partes do download; não as renomeie ou combine
+automaticamente sem primeiro conferir duplicidades de patches e seu manifesto.
+
+O conjunto observado contém patches 512 × 512 com deslocamento de 300 pixels,
+imagens GeoTIFF e máscaras EMATER com **0=não-café, 1=café,
+255=ignorar**. O antigo carregamento PNG com `mask > 127` **não pode ser
+aplicado**, pois transforma 255 em café e 1 em não-café.
+
+### Caminhos no Kaggle
+
+1. Disponibilizar as pastas com arquivos GeoTIFF como um **Kaggle Dataset**,
+   mantendo a hierarquia e com permissão de uso apropriada para os dados.
+   Para dados não públicos, **não publicar como dataset público**.
+2. Montar a base somente-leitura sob `/kaggle/input/<nome-do-dataset>/`.
+3. Escrever checkpoints, logs e métricas sob `/kaggle/working/`.
+4. Nunca colocar token, chave de serviço ou dados brutos no GitHub.
+5. Validar no notebook o número de pares, CRS, bandas, classes e proporção
+   de pixels ignorados **antes** de treinar.
+
+### Protocolo de avaliação
+
+- Construir primeiro todos os pares, descartando variantes repetidas da mesma
+  imagem. Verificar que as duas partes `Municipios` não duplicam patches.
+- Aplicar `spatial_folds()` sobre os patches **agregados** da RGI, sem split
+  aleatório de patches ou treinamento por cidade.
+- Excluir do treino todo patch que intercepte a extensão de validação
+  (sobreposição de 512/300), evitando vazamento direto.
+- Reservar teste espacial independente antes da seleção de hiperparâmetros;
+  folds de validação servem para comparação/ajuste, não substituem teste cego.
+- Fazer análise de sensibilidade a sombras, anos e municípios **apenas depois**
+  do resultado agregado, se a amostra permitir.
+- Reportar IoU, Dice/F1, Precision, Recall, acurácia, matriz de confusão,
+  tempo por época e pico de VRAM; métricas devem excluir pixels 255.
+- Não comparar épocas desiguais de testes exploratórios com resultados finais.
+
+## Estado de implementação
+
+O leitor GeoTIFF e as funções de divisão espacial foram adicionados como
+módulos novos para não quebrar notebooks experimentais antigos. A preparação
+das GPUs Kaggle, o treino oficial 512×512 U-Mamba e o teste de ponta a ponta
+**ainda precisam ser executados e validados na plataforma**.

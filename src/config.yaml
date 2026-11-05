@@ -1,4 +1,4 @@
-# Fonte única de verdade de configuração do projeto.
+# Fonte única de verdade. Campos data/ground_truth originais preservados APENAS para notebooks exploratórios.
 project:
   name: "tcc-umamba"
 
@@ -14,7 +14,7 @@ data:
     start: "2023-01-01"
     end: "2023-12-31"
   cloud_threshold: 20
-  patch_size: 256
+  patch_size: 256  # legado; dataset definitivo EMATER usa patches 512x512 já fornecidos
   coffee_min_ratio: 0.0
   crs: "EPSG:31983"
   export:
@@ -22,8 +22,8 @@ data:
     max_pixels: 100000000
 
 ground_truth:
-  # MapBiomas permanece como fonte inicial do pipeline geoespacial.
-  # A qualidade das máscaras deverá ser validada e refinada antes do treinamento final.
+  # MapBiomas é LEGADO, não deve ser usado como ground truth do treinamento oficial.
+  # Ground truth do estudo definitivo: máscaras EMATER já incluídas no pacote Municipios.
   chosen_source: "mapbiomas"
   sources:
     mapbiomas:
@@ -90,3 +90,33 @@ training:
 
 reproducibility:
   seed: 42
+
+# PROTOCOLO DEFINITIVO DO TCC (não substitui configurações de notebooks antigos)
+official_dataset:
+  aoi: "Regiao Geografica Imediata de Guaxupe (MG)"
+  unit_of_analysis: "whole_rgi"
+  source_root_drive: "00_DADOS_OFICIAIS_RGI_GUAXUPE"
+  municipality_archives_dir: "00_DADOS_OFICIAIS_RGI_GUAXUPE/Municipios"
+  scene_archives_dir: "00_DADOS_OFICIAIS_RGI_GUAXUPE/Cenas"
+  patch_variant: "Patches_P512_S300_NN_Fora0_M0"
+  patch_size: 512
+  stride: 300
+  mask_values:
+    non_coffee: 0
+    coffee: 1
+    ignore: 255
+  channels: 4
+  band_indexes_rasterio: [1, 2, 3, 4] # confirmar ordem das bandas no metadado real
+  optical_bands: ["B02", "B03", "B04", "B08"]
+  radiometric_offset: -1000 # verificar por cena
+  normalization: "sentinel2_dn_to_reflectance"
+  crs_expected: "EPSG:32723"
+  split:
+    method: "spatial_block_purged"
+    folds: 5
+    block_size_m: 15000
+    seed: 42
+  training_platform: "kaggle"
+  comparison_models: ["unet", "umamba"]
+  independent_test_required: true
+  sentinel2_future_inference: true
