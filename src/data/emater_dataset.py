@@ -21,6 +21,11 @@ class RasterPair:
     municipality: str
 
 
+RGI_GUAXUPE_MUNICIPALITIES = frozenset({
+    "cabo_verde", "guaxupe", "juruaia", "muzambinho", "nova_resende",
+})
+
+
 def _identical_files(a: Path, b: Path) -> bool:
     """Confere duplicatas em downloads fracionados sem misturar patches distintos."""
     if a.stat().st_size != b.stat().st_size:
@@ -34,7 +39,11 @@ def _identical_files(a: Path, b: Path) -> bool:
     return digest(a) == digest(b)
 
 
-def find_rgi_pairs(dataset_root: str | Path, variant: str = "Patches_P512_S300_NN_Fora0_M0") -> list[RasterPair]:
+def find_rgi_pairs(
+    dataset_root: str | Path,
+    variant: str = "Patches_P512_S300_NN_Fora0_M0",
+    include_external: bool = False,
+) -> list[RasterPair]:
     """Localiza pares de mesma identidade; nunca combina variantes distintas.
 
     Aceita raiz contendo os arquivos originais Municipios-*/Municipios/* ou
@@ -51,6 +60,10 @@ def find_rgi_pairs(dataset_root: str | Path, variant: str = "Patches_P512_S300_N
         if not masks_dir.is_dir():
             raise FileNotFoundError(f"Máscaras ausentes: {masks_dir}")
         municipality = images_dir.parent.parent.name
+        geographic_name = municipality.rsplit("_", 1)[0]
+        if not include_external and geographic_name not in RGI_GUAXUPE_MUNICIPALITIES:
+            # Três Pontas pertence à RGI 310046; não contaminar RGI 310044.
+            continue
         image_paths = {p.name: p for p in images_dir.glob("*.tif")}
         mask_paths = {p.name: p for p in masks_dir.glob("*.tif")}
         missing = sorted(image_paths.keys() ^ mask_paths.keys())
