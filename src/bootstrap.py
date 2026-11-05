@@ -54,7 +54,8 @@ def _download_and_extract(workspace: pathlib.Path) -> None:
 
         repo_dir = extract_dir / REPO_ARCHIVE_DIR
 
-        for rel in ("src", "data", "requirements-runtime.txt"):
+        # Nunca apagar o diretório data/: pode conter GeoTIFFs e resultados locais.
+        for rel in ("src", "requirements-runtime.txt"):
             target = workspace / rel
             if target.is_dir():
                 shutil.rmtree(target)
@@ -70,7 +71,11 @@ def _download_and_extract(workspace: pathlib.Path) -> None:
 
         external = repo_dir / "data" / "external"
         if external.is_dir():
-            shutil.copytree(external, workspace / "data" / "external")
+            # Atualiza somente arquivos estáticos do repositório; preserva
+            # data/raw, interim, processed e dados de outros experimentos.
+            target_external = workspace / "data" / "external"
+            target_external.mkdir(parents=True, exist_ok=True)
+            shutil.copytree(external, target_external, dirs_exist_ok=True)
     finally:
         archive.unlink(missing_ok=True)
         shutil.rmtree(extract_dir, ignore_errors=True)
