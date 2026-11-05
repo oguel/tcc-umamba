@@ -25,13 +25,7 @@ def _put(
         "mask": "Mascaras_Individuais",
     }
     path = (
-        root
-        / f"parte_{part}"
-        / "Municipios"
-        / municipality
-        / folders[variant]
-        / leaf[side]
-        / name
+        root / f"parte_{part}" / "Municipios" / municipality / folders[variant] / leaf[side] / name
     )
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(data)
@@ -41,12 +35,8 @@ def _put(
 def test_pares_reunidos_entre_partes_sem_mover_arquivos(tmp_path):
     img_a = _put(tmp_path, "001", "img", data=b"imagem_a")
     mask_a = _put(tmp_path, "002", "mask", data=b"mascara_a")
-    img_b = _put(
-        tmp_path, "002", "img", "patch_y0_x300.tif", b"imagem_b"
-    )
-    mask_b = _put(
-        tmp_path, "001", "mask", "patch_y0_x300.tif", b"mascara_b"
-    )
+    img_b = _put(tmp_path, "002", "img", "patch_y0_x300.tif", b"imagem_b")
+    mask_b = _put(tmp_path, "001", "mask", "patch_y0_x300.tif", b"mascara_b")
     _put(tmp_path, "001", "img", variant="Fora", data=b"outra")
     _put(tmp_path, "001", "img", municipality="tres_pontas_2024")
     _put(tmp_path, "002", "mask", municipality="tres_pontas_2024")
