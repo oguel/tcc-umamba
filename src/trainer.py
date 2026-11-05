@@ -26,6 +26,7 @@ def run_epoch(
 
     total_loss = 0.0
     sample_count = 0
+    skipped_ignored_samples = 0
     confusion = BinaryConfusion()
 
     context = torch.enable_grad() if training else torch.inference_mode()
@@ -33,6 +34,12 @@ def run_epoch(
         for images, masks in loader:
             images = images.to(device, non_blocking=True)
             masks = masks.to(device, non_blocking=True)
+            labeled = (masks != 255).flatten(start_dim=1).any(dim=1)
+            skipped_ignored_samples += int((~labeled).sum().item())
+            if not bool(labeled.any()):
+                continue
+            images = images[labeled]
+            masks = masks[labeled]
 
             if optimizer is not None:
                 optimizer.zero_grad(set_to_none=True)
@@ -54,8 +61,11 @@ def run_epoch(
             sample_count += batch_size
             confusion.update(logits.detach(), masks)
 
+    if sample_count == 0:
+        raise ValueError("Epoca sem nenhum pixel rotulado; verificar masks/crops.")
     metrics = metrics_from_confusion(confusion)
-    metrics["loss"] = total_loss / max(sample_count, 1)
+    metrics["loss"] = total_loss / sample_count
+    metrics["skipped_fully_ignored_views"] = float(skipped_ignored_samples)
     metrics.update({key: float(value) for key, value in confusion.as_dict().items()})
     return metrics
 
