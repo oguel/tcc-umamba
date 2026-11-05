@@ -1,5 +1,4 @@
 """Testes sintéticos de segmentação regional e vazamento espacial."""
-from pathlib import Path
 import pytest
 
 from src.data.emater_dataset import RasterPair, validate_mask_values
