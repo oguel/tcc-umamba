@@ -51,10 +51,12 @@ aplicado**, pois transforma 255 em café e 1 em não-café.
 
 - Construir primeiro todos os pares, descartando variantes repetidas da mesma
   imagem. Verificar que as duas partes `Municipios` não duplicam patches.
-- Aplicar `spatial_folds()` sobre os patches **agregados** da RGI, sem split
-  aleatório de patches ou treinamento por cidade.
-- Excluir do treino todo patch que intercepte a extensão de validação
-  (sobreposição de 512/300), evitando vazamento direto.
+- Usar `region_holdout_from_bounds()` com duas zonas espaciais compactas,
+  separando o teste e a validação. Esta configuração está **candidata**;
+  não congelar até a auditoria e revisão de representatividade.
+- Excluir do treino todos os patches que interceptem validação ou teste.
+  Os 206 patches formam um único componente de sobreposição encadeada;
+  uma divisão aleatória por patch ou por componente não é apropriada.
 - Reservar teste espacial independente antes da seleção de hiperparâmetros;
   folds de validação servem para comparação/ajuste, não substituem teste cego.
 - Fazer análise de sensibilidade a sombras, anos e municípios **apenas depois**
@@ -66,6 +68,10 @@ aplicado**, pois transforma 255 em café e 1 em não-café.
 ## Estado de implementação
 
 O leitor GeoTIFF e as funções de divisão espacial foram adicionados como
-módulos novos para não quebrar notebooks experimentais antigos. A preparação
-das GPUs Kaggle, o treino oficial 512×512 U-Mamba e o teste de ponta a ponta
-**ainda precisam ser executados e validados na plataforma**.
+módulos novos para não quebrar notebooks experimentais antigos. Os 206 pares reais (imagens e máscaras) da variante NN foram inspecionados
+integralmente em 05/11/2026: bandas, CRS, máscara, alinhamento, offset e
+valores de pixels compatíveis, sem erros detectados nas verificações realizadas.
+Há café e não-café em todo patch 512; somente 4 dos 824 quadrantes 256
+são puramente negativos, e 1 é totalmente ignorado. A preparação das GPUs,
+o treino oficial de U-Net e U-Mamba e a avaliação independente ainda
+**não foram executados**.
