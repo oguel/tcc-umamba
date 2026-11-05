@@ -3,6 +3,7 @@
 Os municípios identificam a proveniência dos recortes; NÃO definem treinos separados.
 Máscaras: 0 = não-café; 1 = café; 255 = pixel ignorado.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -21,21 +22,29 @@ class RasterPair:
     municipality: str
 
 
-RGI_GUAXUPE_MUNICIPALITIES = frozenset({
-    "cabo_verde", "guaxupe", "juruaia", "muzambinho", "nova_resende",
-})
+RGI_GUAXUPE_MUNICIPALITIES = frozenset(
+    {
+        "cabo_verde",
+        "guaxupe",
+        "juruaia",
+        "muzambinho",
+        "nova_resende",
+    }
+)
 
 
 def _identical_files(a: Path, b: Path) -> bool:
     """Confere duplicatas em downloads fracionados sem misturar patches distintos."""
     if a.stat().st_size != b.stat().st_size:
         return False
+
     def digest(path: Path) -> str:
         h = sha256()
         with path.open("rb") as handle:
             for chunk in iter(lambda: handle.read(1024 * 1024), b""):
                 h.update(chunk)
         return h.hexdigest()
+
     return digest(a) == digest(b)
 
 
@@ -74,8 +83,10 @@ def find_rgi_pairs(
             current = RasterPair(image_paths[name], mask_paths[name], municipality)
             if key in pairs:
                 previous = pairs[key]
-                if not (_identical_files(previous.image, current.image)
-                        and _identical_files(previous.mask, current.mask)):
+                if not (
+                    _identical_files(previous.image, current.image)
+                    and _identical_files(previous.mask, current.mask)
+                ):
                     raise ValueError(
                         f"Patch {key} existe em mais de uma parte com conteúdo diferente. "
                         "Conferir manualmente antes de treinar."
