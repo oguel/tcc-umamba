@@ -6,10 +6,18 @@ Separação espacial deve ocorrer ANTES de instanciar RGIPatchViews.
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, Protocol
 
 import torch
 from torch.utils.data import Dataset
+
+
+class RasterSource(Protocol):
+    """Contrato mínimo de Dataset com acesso por índice e comprimento."""
+
+    def __len__(self) -> int: ...
+
+    def __getitem__(self, index: int) -> tuple[torch.Tensor, torch.Tensor]: ...
 
 
 class RGIPatchViews(Dataset[tuple[torch.Tensor, torch.Tensor]]):
@@ -26,7 +34,7 @@ class RGIPatchViews(Dataset[tuple[torch.Tensor, torch.Tensor]]):
 
     def __init__(
         self,
-        source: Dataset[tuple[torch.Tensor, torch.Tensor]],
+        source: RasterSource,
         *,
         size: Literal[256, 512] = 512,
         mode: Literal["train", "eval"] = "train",
