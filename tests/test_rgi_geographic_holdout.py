@@ -65,17 +65,13 @@ def test_intersecao_na_borda_nao_conta_como_vazamento():
 def test_falha_se_uma_cidade_nao_tiver_treino():
     bounds, cities = _dataset()
     with pytest.raises(ValueError, match="Cobertura municipal"):
-        region_holdout_from_bounds(
-            bounds, cities, min_train_per_municipality=9
-        )
+        region_holdout_from_bounds(bounds, cities, min_train_per_municipality=9)
 
 
 def test_falha_se_validacao_e_teste_sobrepuserem():
     bounds, cities = _dataset()
     with pytest.raises(ValueError, match="compartilham"):
-        region_holdout_from_bounds(
-            bounds, cities, validation_center=DEFAULT_TEST_CENTER
-        )
+        region_holdout_from_bounds(bounds, cities, validation_center=DEFAULT_TEST_CENTER)
 
 
 def test_falha_se_raster_ou_bounds_estiverem_incorretos():
