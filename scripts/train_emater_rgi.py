@@ -20,6 +20,7 @@ from torch.utils.data import DataLoader, Subset
 
 from src.data.augmentation import RGIPatchViews
 from src.data.emater_dataset import EMATERRGIDataset, find_rgi_pairs
+from src.data.rgi_fingerprint import dataset_fingerprint
 from src.data.rgi_geographic_holdout import regional_split
 from src.losses import BCEDiceLoss
 from src.models.unet import UNet
@@ -68,6 +69,7 @@ def train(
         torch.cuda.manual_seed_all(seed)
 
     pairs = find_rgi_pairs(root)
+    fingerprint = dataset_fingerprint(pairs)
     train_ids, val_ids, test_ids, purged_ids = make_holdouts(pairs)
     dataset = EMATERRGIDataset(pairs)
     size = patch_size
@@ -111,6 +113,7 @@ def train(
     split_record = {
         "seed": seed,
         "split_method": "candidate_geographic_zones_epsg32723",
+        "dataset_fingerprint": fingerprint,
         "split_approved": False,
         "source_root": str(root),
         "patch_size": size,
@@ -141,6 +144,7 @@ def train(
         "best_epoch": checkpoint["epoch"],
         "best_val_iou": checkpoint["val_iou"],
         "num_train": len(train_ids),
+        "dataset_fingerprint": fingerprint,
         "num_val": len(val_ids),
         "num_test_locked": len(test_ids),
         "num_purged": len(purged_ids),
