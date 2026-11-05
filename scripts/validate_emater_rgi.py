@@ -14,6 +14,7 @@ from pathlib import Path
 
 import numpy as np
 
+from src.config import get_config
 from src.data.emater_dataset import find_rgi_pairs, validate_mask_values
 from src.data.rgi_fingerprint import dataset_fingerprint
 from src.data.rgi_geographic_holdout import regional_split
@@ -166,8 +167,9 @@ def audit(
             for a, b in (("train", "validation"), ("train", "test"), ("validation", "test"))
         }
         split_info = {
-            "status": "candidate_not_frozen",
-            "method": "geographic_zones_with_overlap_purge",
+            "status": get_config()["official_dataset"]["split"]["status"],
+            "method": get_config()["official_dataset"]["split"]["method"],
+            "split_sha256": get_config()["official_dataset"]["split"]["expected_split_sha256"],
             "train": len(proposal.train),
             "validation": len(proposal.validation),
             "test_locked": len(proposal.test),
@@ -215,7 +217,10 @@ def audit(
         "fingerprint_scope": "full" if len(checked) == len(pairs) else "partial",
         "warnings": warnings,
         "preflight_approved": False,
-        "approval_pending": "Divisão candidata; protocolo científico ainda não congelado.",
+        "approval_pending": (
+            "Divisão espacial versionada; uso limitado a pilotos, "
+            "sem aprovação científica automática."
+        ),
         "per_patch": per_patch,
         "training_completed": False,
     }

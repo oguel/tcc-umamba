@@ -147,9 +147,11 @@ def train(
     # avaliado durante exploração/seleção de hiperparâmetros.
     split_record = {
         "seed": seed,
-        "split_method": "candidate_geographic_zones_epsg32723",
+        "split_method": get_config()["official_dataset"]["split"]["method"],
+        "split_status": get_config()["official_dataset"]["split"]["status"],
+        "split_sha256": get_config()["official_dataset"]["split"]["expected_split_sha256"],
         "dataset_fingerprint": fingerprint,
-        "split_approved": False,
+        "split_approved": False,  # aprovação científica não decorre do congelamento espacial
         "full_candidate_train_count": full_train_count,
         "full_candidate_validation_count": full_val_count,
         "pilot_train_per_municipality": pilot_train_per_municipality,

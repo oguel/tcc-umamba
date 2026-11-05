@@ -113,12 +113,15 @@ official_dataset:
   normalization: "sentinel2_dn_to_reflectance"
   crs_expected: "EPSG:32723"
   split:
-    method: "candidate_geographic_regions_with_overlap_purge"
-    status: "candidate_not_frozen"
+    method: "balanced_validation_locked_test_v1"
+    status: "spatial_frozen_v1_pilots_only"
+    expected_split_sha256: "1d7327d89c0abc795364a9751223fbd6725d1d0997a080e9a07cc4d98cc02f72"
+    validation_per_municipality: 4
+    geometry_search_trials: 5000
     test_center_epsg32723: [359250, 7657850]
     validation_center_epsg32723: [344690, 7620910]
     region_radius_m: 9000
-    buffer_m: 1000 # margem adicional entre envelopes; candidato, avaliar sensibilidade
+    buffer_m: 1000 # margem congelada da versão espacial v1
     seed: 42
   execution: "portable" # mesmo codigo pode rodar local, Colab ou Kaggle com dependencias adequadas
   comparison_models: ["unet", "umamba"]

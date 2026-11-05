@@ -149,4 +149,31 @@ def regional_split(
             b = raster.bounds
             bounds.append((b.left, b.bottom, b.right, b.top))
         municipalities.append(pair.municipality)
-    return region_holdout_from_bounds(bounds, municipalities, **defaults)
+    original = region_holdout_from_bounds(bounds, municipalities, **defaults)
+    if config.get("method") != "balanced_validation_locked_test_v1":
+        return original
+    if kwargs:
+        raise ValueError("Divisão congelada não permite substituir parâmetros.")
+    from src.data.rgi_balanced_split import balanced_split, split_digest
+
+    keys = [f"{p.municipality}/{p.image.name}" for p in pairs]
+    order = sorted(range(len(pairs)), key=lambda i: keys[i])
+    inverse = {index: rank for rank, index in enumerate(order)}
+    result = balanced_split(
+        [bounds[i] for i in order],
+        [municipalities[i] for i in order],
+        [inverse[i] for i in original.test],
+        buffer_m=config["buffer_m"],
+        per_city=config["validation_per_municipality"],
+        trials=config["geometry_search_trials"],
+        seed=config["seed"],
+    )
+    mapped = RegionalSplit(
+        *(
+            tuple(order[i] for i in getattr(result, group))
+            for group in ("train", "validation", "test", "purged")
+        )
+    )
+    if split_digest(keys, mapped) != config["expected_split_sha256"]:
+        raise ValueError("Divisão difere da versão congelada; revisar dados/configuração.")
+    return mapped

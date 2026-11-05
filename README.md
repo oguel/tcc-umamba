@@ -75,6 +75,12 @@ O script realiza uma atualização de uma U-Net compacta em CPU com raster sint�
 
 ## Estado atual
 
+Revisão espacial v1: validação com quatro patches de cada município, teste
+anterior preservado e margem de 1km. A divisão computacional congelada tem
+89 treino / 20 validação / 20 teste / 77 purgados, para pilotos.
+Ver [decisão, limites e hashes](docs/DIVISAO_ESPACIAL_V1.md).
+Os números da continuação abaixo descrevem a divisão anterior.
+
 Continuação técnica de 05/11/2026: auditoria NN de 285 pares e dos 18 rasters
 municipais de origem, pilotos curtos da U-Net executados em CUDA local e
 preflight U-Mamba pendente de Linux compatível. A divisão com margem de 1km

@@ -2,6 +2,10 @@
 
 ## Escopo
 
+Atualização espacial: [v1 congelada para pilotos](DIVISAO_ESPACIAL_V1.md).
+Essa versão substitui a divisão candidata descrita historicamente abaixo e
+não constitui aprovação automática da campanha científica.
+
 - **Um único experimento regional**, com todos os pares válidos da RGI agregados.
 - Os nomes de municípios/anos servem como **proveniência geográfica e temporal**,
   não como seis treinamentos independentes.
