@@ -22,9 +22,7 @@ class SyntheticRaster(Dataset[tuple[torch.Tensor, torch.Tensor]]):
         mask[:80, :80] = 255
         # Canal 0 espelha o rótulo (inclusive ignore) para verificar que
         # nenhuma transformação deslocou a máscara em relação à imagem.
-        image = torch.stack(
-            (mask, x.float(), y.float(), (x + y).float()), dim=0
-        )
+        image = torch.stack((mask, x.float(), y.float(), (x + y).float()), dim=0)
         return image, mask.unsqueeze(0)
 
 
@@ -49,7 +47,10 @@ def test_val_256_cobre_quatro_quadrantes_sem_augmentar():
 def test_treino_256_augmentado_preserva_alinhamento_e_ignore():
     torch.manual_seed(111)
     views = RGIPatchViews(
-        SyntheticRaster(2), size=256, mode="train", augment=True,
+        SyntheticRaster(2),
+        size=256,
+        mode="train",
+        augment=True,
         train_views_per_image=4,
     )
     assert len(views) == 8
@@ -100,5 +101,8 @@ def test_crop_ignorado_e_detectado():
 
     with pytest.raises(ValueError, match="Nenhum pixel rotulado"):
         RGIPatchViews(
-            Unlabelled(), size=256, mode="train", augment=True,
+            Unlabelled(),
+            size=256,
+            mode="train",
+            augment=True,
         )[0]
