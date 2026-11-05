@@ -71,9 +71,7 @@ def region_holdout_from_bounds(
     if len(forbidden) != len(test) + len(validation):
         raise ValueError("Validacao e teste compartilham patches.")
     if len(test) < min_test or len(validation) < min_val:
-        raise ValueError(
-            f"Validacao/teste muito pequenos: {len(validation)} / {len(test)}."
-        )
+        raise ValueError(f"Validacao/teste muito pequenos: {len(validation)} / {len(test)}.")
     if any(intersects(bounds[i], bounds[j]) for i in validation for j in test):
         raise ValueError("Validacao e teste interceptam a mesma area.")
 
