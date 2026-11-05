@@ -10,8 +10,7 @@ inicial trabalha com UMA GPU; 2×T4 não equivale a 32 GB de VRAM unificada.
 
 ## Antes de ativar GPU
 
-1. Confirmar autorização da EMATER para armazenar dados no Kaggle;
-   se não for permitida divulgação, usar **dataset privado**.
+1. Confirmar autorização da EMATER para armazenar os dados em uma plataforma externa.\n   **Dataset privado também exige permissão de processamento externo**; não publicar sem licença.
 2. Exportar `00_DADOS_OFICIAIS_RGI_GUAXUPE/Municipios` para um dataset
    com todos os arquivos originais, preservando as subpastas.
 3. A base tem duas pastas exportadas `Municipios-...` e três
@@ -26,7 +25,7 @@ No Notebook do Kaggle:
 ```bash
 !git clone https://github.com/oguel/tcc-umamba.git
 %cd tcc-umamba
-!git checkout feat/dataset-rgi-emater-kaggle-20261105
+!git checkout main
 !pip install -r requirements-runtime.txt
 !python -m scripts.validate_emater_rgi --root /kaggle/input/NOME_DO_DATASET --output /kaggle/working/auditoria_rgi.json
 ```
@@ -59,7 +58,7 @@ o kernel se o PyTorch mudar. Não misturar versões do
 
 O runner reserva teste espacial, validação espacial e treino sobre os
 mesmos pares regionais; repita com as duas arquiteturas e mesma semente.
-O teste de 2 épocas é apenas um *smoke test*. Não publicar métricas
+O teste está **bloqueado por padrão**; a opção `--evaluate-test` deve ser usada só após congelar o protocolo. O teste de 2 épocas é apenas um *smoke test*. Não publicar métricas
 como resultados finais antes da campanha de treino controlada.
 
 Salvar do diretório `/kaggle/working/tcc_rgi/` os pesos, métricas e
