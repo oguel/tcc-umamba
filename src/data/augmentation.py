@@ -112,8 +112,6 @@ class RGIPatchViews(Dataset[tuple[torch.Tensor, torch.Tensor]]):
                 image, mask = torch.flip(image, (-2,)), torch.flip(mask, (-2,))
             k = int(torch.randint(4, (1,)).item())
             if k:
-                image, mask = torch.rot90(image, k, (-2, -1)), torch.rot90(
-                    mask, k, (-2, -1)
-                )
+                image, mask = torch.rot90(image, k, (-2, -1)), torch.rot90(mask, k, (-2, -1))
 
         return image.contiguous(), mask.contiguous()
