@@ -6,6 +6,7 @@ Máscaras: 0 = não-café; 1 = café; 255 = pixel ignorado.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from hashlib import sha256
 from pathlib import Path
 
 import numpy as np
@@ -18,6 +19,19 @@ class RasterPair:
     image: Path
     mask: Path
     municipality: str
+
+
+def _identical_files(a: Path, b: Path) -> bool:
+    """Confere duplicatas em downloads fracionados sem misturar patches distintos."""
+    if a.stat().st_size != b.stat().st_size:
+        return False
+    def digest(path: Path) -> str:
+        h = sha256()
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                h.update(chunk)
+        return h.hexdigest()
+    return digest(a) == digest(b)
 
 
 def find_rgi_pairs(dataset_root: str | Path, variant: str = "Patches_P512_S300_NN_Fora0_M0") -> list[RasterPair]:
@@ -44,12 +58,17 @@ def find_rgi_pairs(dataset_root: str | Path, variant: str = "Patches_P512_S300_N
             raise ValueError(f"Imagens/máscaras sem par em {municipality}: {missing[:10]}")
         for name in sorted(image_paths):
             key = (municipality, name)
+            current = RasterPair(image_paths[name], mask_paths[name], municipality)
             if key in pairs:
-                raise ValueError(
-                    f"Patch duplicado {key}; confira se as duas partes de Municipios "
-                    "foram descompactadas com conteúdo repetido."
-                )
-            pairs[key] = RasterPair(image_paths[name], mask_paths[name], municipality)
+                previous = pairs[key]
+                if not (_identical_files(previous.image, current.image)
+                        and _identical_files(previous.mask, current.mask)):
+                    raise ValueError(
+                        f"Patch {key} existe em mais de uma parte com conteúdo diferente. "
+                        "Conferir manualmente antes de treinar."
+                    )
+                continue
+            pairs[key] = current
     if not pairs:
         raise ValueError(
             f"Nenhum par GeoTIFF encontrado em {root} na variante {variant}. "
