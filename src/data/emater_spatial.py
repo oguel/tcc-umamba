@@ -3,6 +3,7 @@
 O bloco é uma região do mesmo CRS; patches de sobreposição cruzada são
 excluídos do treinamento de cada fold para evitar vazamento por interseção.
 """
+
 from __future__ import annotations
 
 from collections import defaultdict
@@ -15,6 +16,7 @@ from src.data.emater_dataset import RasterPair
 
 def _spatial_index(pairs: Sequence[RasterPair], block_m: float):
     import rasterio
+
     rows = []
     crs_seen = None
     for pair in pairs:
@@ -39,7 +41,9 @@ def _intersects(a: tuple[float, ...], b: tuple[float, ...]) -> bool:
 
 
 def spatial_folds(
-    pairs: Sequence[RasterPair], k: int = 5, block_m: float = 15000,
+    pairs: Sequence[RasterPair],
+    k: int = 5,
+    block_m: float = 15000,
     seed: int = 42,
 ) -> list[tuple[list[int], list[int]]]:
     """Retorna (índices treino, índices validação) para k folds espaciais.
@@ -72,7 +76,8 @@ def spatial_folds(
         val = [i for i, (block, _) in enumerate(rows) if block_fold[block] == fold]
         validation_bounds = [rows[i][1] for i in val]
         train = [
-            i for i, (block, bounds) in enumerate(rows)
+            i
+            for i, (block, bounds) in enumerate(rows)
             if block_fold[block] != fold
             and not any(_intersects(bounds, vb) for vb in validation_bounds)
         ]
