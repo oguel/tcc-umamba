@@ -20,29 +20,16 @@ from torch.utils.data import DataLoader, Subset
 
 from src.data.augmentation import RGIPatchViews
 from src.data.emater_dataset import EMATERRGIDataset, find_rgi_pairs
-from src.data.emater_spatial import spatial_folds
+from src.data.rgi_geographic_holdout import regional_split
 from src.losses import BCEDiceLoss
 from src.models.unet import UNet
-from src.trainer import fit_model, run_epoch
+from src.trainer import fit_model
 
 
-def make_holdouts(pairs, k=5, block_m=15000, seed=42):
-    """Dois folds espaciais distintos: um teste cego, um validação.
-
-    Calcula a interseção dos conjuntos permitidos nos dois holdouts, para
-    remover também patches que cruzam os limites entre teste e validação.
-    """
-    folds = spatial_folds(pairs, k=k, block_m=block_m, seed=seed)
-    permitted_from_test, test = map(set, folds[0])
-    permitted_from_val, candidates_val = map(set, folds[1])
-    val = sorted(candidates_val & permitted_from_test)
-    train = sorted(permitted_from_test & permitted_from_val)
-    test = sorted(test)
-    if not (train and val and test):
-        raise ValueError("Divisões vazias: ajuste a granularidade do bloco espacial.")
-    if set(train) & set(val) or set(train) & set(test) or set(val) & set(test):
-        raise AssertionError("Vazamento entre splits.")
-    return train, val, test
+def make_holdouts(pairs):
+    """Proposta de holdout regional: teste totalmente fechado em pilotos."""
+    result = regional_split(pairs)
+    return list(result.train), list(result.validation), list(result.test), list(result.purged)
 
 
 def build_model(kind: str, size: int) -> torch.nn.Module:
@@ -69,6 +56,11 @@ def train(
     num_workers: int = 2,
     evaluate_test: bool = False,
 ):
+    if evaluate_test:
+        raise ValueError(
+            "Treinamento nunca avalia teste cego; use avaliador final separado "
+            "somente depois de congelar o protocolo."
+        )
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -76,7 +68,7 @@ def train(
         torch.cuda.manual_seed_all(seed)
 
     pairs = find_rgi_pairs(root)
-    train_ids, val_ids, test_ids = make_holdouts(pairs, seed=seed)
+    train_ids, val_ids, test_ids, purged_ids = make_holdouts(pairs)
     dataset = EMATERRGIDataset(pairs)
     size = patch_size
     if train_views_per_image is None:
@@ -105,7 +97,7 @@ def train(
 
     train_loader = loader(train_ids, training=True)
     val_loader = loader(val_ids)
-    test_loader = loader(test_ids)
+    # Nao carregar o teste cego durante desenvolvimento.
 
     model = build_model(kind, size=size).to(device)
     criterion = BCEDiceLoss(ignore_index=255)
@@ -118,8 +110,8 @@ def train(
     # avaliado durante exploração/seleção de hiperparâmetros.
     split_record = {
         "seed": seed,
-        "blocks_m": 15000,
-        "k": 5,
+        "split_method": "candidate_geographic_zones_epsg32723",
+        "split_approved": False,
         "source_root": str(root),
         "patch_size": size,
         "augment_train_only": augment,
@@ -127,6 +119,7 @@ def train(
         "train": [str(pairs[i].image.relative_to(root)) for i in train_ids],
         "validation": [str(pairs[i].image.relative_to(root)) for i in val_ids],
         "test_locked": [str(pairs[i].image.relative_to(root)) for i in test_ids],
+        "purged": [str(pairs[i].image.relative_to(root)) for i in purged_ids],
     }
     (run_dir / "splits.json").write_text(
         json.dumps(split_record, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
@@ -138,24 +131,25 @@ def train(
     )
     checkpoint = torch.load(ckpt, map_location=device, weights_only=True)
     model.load_state_dict(checkpoint["model_state_dict"])
-    # O teste cego só será aberto na avaliação oficial, uma vez por modelo
-    # após congelar arquitetura, configurações e melhor checkpoint.
-    metrics = run_epoch(model, test_loader, criterion, device) if evaluate_test else None
+    # NUNCA inferir o teste nesta rotina. Criar script separado de avaliacao
+    # final apenas apos congelar dataset, hiperparametros e checkpoints.
+    metrics = None
     report = {
         "model": kind,
-        "stage": "final_test" if evaluate_test else "development_validation",
+        "stage": "technical_pilot_not_scientific_result",
         "epochs_requested": epochs,
         "best_epoch": checkpoint["epoch"],
         "best_val_iou": checkpoint["val_iou"],
         "num_train": len(train_ids),
         "num_val": len(val_ids),
-        "num_test": len(test_ids),
+        "num_test_locked": len(test_ids),
+        "num_purged": len(purged_ids),
         "patch_size": size,
         "augmentation": "dihedral_flip_rotate90" if augment else "none",
         "train_views_per_image": train_views_per_image,
         "train_samples_per_epoch": len(train_loader.dataset),
         "validation_views": len(val_loader.dataset),
-        "test_views": len(test_loader.dataset),
+        "test_views_not_evaluated": len(test_ids) * (4 if size == 256 else 1),
         "excluded_external": "tres_pontas_2024",
         "device": str(device),
         "platform": platform.platform(),
@@ -195,10 +189,7 @@ def main():
     parser.add_argument("--num-workers", type=int, default=2)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--output", type=Path, default=Path("artifacts/rgi_runs"))
-    parser.add_argument(
-        "--evaluate-test", action="store_true",
-        help="Abrir teste cego apenas na execução final após congelar o protocolo.",
-    )
+    # Nao disponibilizar --evaluate-test aqui: evitar vazamento acidental.
     args = parser.parse_args()
     if args.epochs < 1 or args.batch_size < 1 or args.num_workers < 0:
         parser.error("epochs e batch-size devem ser >= 1; num-workers deve ser >= 0")
@@ -208,7 +199,7 @@ def main():
         augment=args.augment,
         train_views_per_image=args.train_views_per_image,
         num_workers=args.num_workers,
-        evaluate_test=args.evaluate_test,
+        evaluate_test=False,
     )
 
 
