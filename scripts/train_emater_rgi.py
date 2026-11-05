@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import platform
 import random
+from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -53,7 +55,15 @@ def build_model(kind: str, size: int) -> torch.nn.Module:
     raise ValueError(f"Modelo desconhecido: {kind}")
 
 
-def train(root: Path, kind: str, epochs: int, output: Path, seed: int, batch_size: int):
+def train(
+    root: Path,
+    kind: str,
+    epochs: int,
+    output: Path,
+    seed: int,
+    batch_size: int,
+    evaluate_test: bool = False,
+):
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -81,18 +91,37 @@ def train(root: Path, kind: str, epochs: int, output: Path, seed: int, batch_siz
     model = build_model(kind, size=size).to(device)
     criterion = BCEDiceLoss(ignore_index=255)
     optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4)
-    output.mkdir(parents=True, exist_ok=True)
-    ckpt = output / f"best_{kind}_rgi.pt"
+    # Execuções independentes evitam sobrescrever pesos e métricas históricos.
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    run_dir = output / f"{timestamp}_{kind}_seed{seed}"
+    run_dir.mkdir(parents=True, exist_ok=False)
+    # A identidade espacial do teste é preservada, mas o conjunto NÃO é
+    # avaliado durante exploração/seleção de hiperparâmetros.
+    split_record = {
+        "seed": seed,
+        "blocks_m": 15000,
+        "k": 5,
+        "source_root": str(root),
+        "train": [str(pairs[i].image.relative_to(root)) for i in train_ids],
+        "validation": [str(pairs[i].image.relative_to(root)) for i in val_ids],
+        "test_locked": [str(pairs[i].image.relative_to(root)) for i in test_ids],
+    }
+    (run_dir / "splits.json").write_text(
+        json.dumps(split_record, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    ckpt = run_dir / f"best_{kind}_rgi.pt"
     history = fit_model(
         model, train_loader, val_loader, criterion, optimizer,
         device, epochs=epochs, checkpoint_path=ckpt,
     )
     checkpoint = torch.load(ckpt, map_location=device, weights_only=True)
     model.load_state_dict(checkpoint["model_state_dict"])
-    metrics = run_epoch(model, test_loader, criterion, device)
+    # O teste cego só será aberto na avaliação oficial, uma vez por modelo
+    # após congelar arquitetura, configurações e melhor checkpoint.
+    metrics = run_epoch(model, test_loader, criterion, device) if evaluate_test else None
     report = {
         "model": kind,
-        "stage": "official_rgi_training",
+        "stage": "final_test" if evaluate_test else "development_validation",
         "epochs_requested": epochs,
         "best_epoch": checkpoint["epoch"],
         "best_val_iou": checkpoint["val_iou"],
@@ -101,15 +130,19 @@ def train(root: Path, kind: str, epochs: int, output: Path, seed: int, batch_siz
         "num_test": len(test_ids),
         "excluded_external": "tres_pontas_2024",
         "device": str(device),
+        "platform": platform.platform(),
+        "python": platform.python_version(),
+        "cuda": str(torch.version.cuda),
+        "gpu": torch.cuda.get_device_name(0) if device.type == "cuda" else None,
         "torch_version": torch.__version__,
         "seed": seed,
         "metrics": metrics,
         "checkpoint": str(ckpt),
     }
-    (output / f"{kind}_metrics.json").write_text(
+    (run_dir / "metrics.json").write_text(
         json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
-    (output / f"{kind}_history.json").write_text(
+    (run_dir / "history.json").write_text(
         json.dumps(history, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
     print(json.dumps(report, indent=2, ensure_ascii=False))
@@ -123,11 +156,18 @@ def main():
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--batch-size", type=int, default=1)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--output", type=Path, default=Path("/kaggle/working/tcc_rgi"))
+    parser.add_argument("--output", type=Path, default=Path("artifacts/rgi_runs"))
+    parser.add_argument(
+        "--evaluate-test", action="store_true",
+        help="Abrir teste cego apenas na execução final após congelar o protocolo.",
+    )
     args = parser.parse_args()
     if args.epochs < 1 or args.batch_size < 1:
         parser.error("epochs e batch-size precisam ser >= 1")
-    train(args.root, args.model, args.epochs, args.output, args.seed, args.batch_size)
+    train(
+        args.root, args.model, args.epochs, args.output, args.seed, args.batch_size,
+        evaluate_test=args.evaluate_test,
+    )
 
 
 if __name__ == "__main__":
