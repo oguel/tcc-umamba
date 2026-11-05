@@ -73,10 +73,7 @@ def find_rgi_pairs(
                 continue
             municipality = folder.parent.parent.name
             geographic_name = municipality.rsplit("_", 1)[0]
-            if (
-                not include_external
-                and geographic_name not in RGI_GUAXUPE_MUNICIPALITIES
-            ):
+            if not include_external and geographic_name not in RGI_GUAXUPE_MUNICIPALITIES:
                 continue
             for path in sorted(folder.glob("*.tif")):
                 key = (municipality, path.name)
@@ -112,6 +109,7 @@ def find_rgi_pairs(
         RasterPair(image=images[key], mask=masks[key], municipality=key[0])
         for key in sorted(images)
     ]
+
 
 def validate_mask_values(mask: np.ndarray) -> None:
     """Não permite binarização por threshold: 255 nunca é café."""
