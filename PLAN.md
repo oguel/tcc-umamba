@@ -65,7 +65,7 @@ sobre os dados remanescentes, sem reutilizar o teste final.
 - Fixar seed, código (SHA de commit), fingerprint de dados, origem e versão
   do raster, definições de classes, estatísticas normalizadas obtidas
   **apenas do treino**, VRAM e nome da GPU.
-- `--evaluate-test` é exclusivamente para avaliação final. O teste fica
+- O `--evaluate-test` foi desabilitado no treinamento; a avaliação final precisa de rotina separada. O teste fica
   fechado durante tuning, varredura de hiperparâmetros e ensaios de notebook.
 - O código é portátil: Colab, Kaggle ou outro ambiente CUDA compatível;
   scripts aceitam caminhos de entrada/saída. A compatibilidade de U-Mamba
