@@ -6,7 +6,6 @@ excluídos do treinamento de cada fold para evitar vazamento por interseção.
 from __future__ import annotations
 
 from collections import defaultdict
-from pathlib import Path
 from typing import Sequence
 
 import numpy as np
