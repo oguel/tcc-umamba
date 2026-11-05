@@ -52,7 +52,16 @@ python -m scripts.train_emater_rgi --root /kaggle/input/NOME_DO_DATASET --model 
 
 6. Para treinar a U-Mamba, primeiro verificar e preparar o runtime CUDA+Mamba fixado no projeto. **Não assumir que a wheel validada anteriormente em Colab funcionará automaticamente no Kaggle.**
 
-A documentação técnica está em [docs/PROTOCOLO_DEFINITIVO_RGI.md](docs/PROTOCOLO_DEFINITIVO_RGI.md) e [docs/KAGGLE.md](docs/KAGGLE.md).
+A documentação técnica está em [docs/PROTOCOLO_DEFINITIVO_RGI.md](docs/PROTOCOLO_DEFINITIVO_RGI.md), [docs/AUGMENTACAO.md](docs/AUGMENTACAO.md) e [docs/KAGGLE.md](docs/KAGGLE.md).
+
+### Primeiro teste técnico, antes do treino científico
+
+```bash
+python -m scripts.smoke_emater_rgi --synthetic --patch-size 256 --augment
+python -m scripts.smoke_emater_rgi --synthetic --patch-size 512 --augment
+```
+
+O script realiza uma atualização de uma U-Net compacta em CPU com raster sintético, testa o fluxo de máscaras/augmentação e **não produz resultados científicos**. Para treinar sobre dados reais **após a auditoria espacial**, o runner aceita `--patch-size 256|512`, `--augment` e `--train-views-per-image 1..4`. Em 256, validação e teste abrangem os quatro quadrantes fixos, sem augmentação. Os GeoTIFFs do Drive nunca são alterados.
 
 ## Metodologia
 

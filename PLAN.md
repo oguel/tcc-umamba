@@ -40,7 +40,7 @@ separado para possível validação externa adicional.
 | 4 | Corrigir viés de exemplos positivos, adicionar áreas comprovadamente não-café | Sem negativos confiáveis |
 | 5 | Congelar versão/fingerprint do conjunto e uma área de teste espacial intocável | Vazamento/overlap de teste |
 | 6 | Dividir dados restantes para seleção/validação espacial, verificar tamanho de blocos | Treino/val vazios ou sobrepostos |
-| 7 | Preparar runtime GPU/PyTorch/CUDA, smoke test de U-Net e U-Mamba em 512x512 | Kernel incompatível, OOM, NaN |
+| 7 | Testar augmentação online 256/512 em CPU e preparar runtime GPU/PyTorch/CUDA; smoke U-Mamba em GPU | Kernel incompatível, OOM, NaN |
 | 8 | Treinar comparativamente com mesma fonte, folds, bandas, hiperparâmetros e sementes | Orçamentos de treino não comparáveis |
 | 9 | Congelar melhores modelos, realizar uma avaliação no teste cego | Teste já reutilizado em tuning |
 | 10 | Produzir mapas, matriz de confusão, CSV/JSON, gráficos, métricas e custo computacional | Artefatos sem rastreabilidade |
@@ -104,6 +104,8 @@ antes da campanha definitiva.
 - `docs/KAGGLE.md` — *exemplo* de execução na nuvem, não plataforma obrigatória.
 - `scripts/validate_emater_rgi.py` — preflight de imagem, máscara e split.
 - `scripts/train_emater_rgi.py` — piloto portável com teste final fechado.
+- `scripts/smoke_emater_rgi.py` — teste CPU do pipeline com raster sintético ou par real, sem resultado científico.
+- `src/data/augmentation.py` e `docs/AUGMENTACAO.md` — crops 256/512, flips e rotações somente no treino.
 - `src/data/emater_dataset.py` — loader tif e rótulos 0/1/255.
 - `src/data/emater_spatial.py` — blocos espaciais com descarte de overlap.
 
