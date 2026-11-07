@@ -1,5 +1,11 @@
 # Avaliação espacial com os checkpoints existentes
 
+Atualização após execução: o teste foi concluído com os dois pesos fixados e o
+ZIP recebido foi conferido. Resultados e limites em
+[RESULTADO_TESTE_ESPACIAL_20261106.md](RESULTADO_TESTE_ESPACIAL_20261106.md).
+As referências abaixo a teste fechado/preparação descrevem o protocolo prévio;
+o teste agora está exposto e não deve ser usado para ajuste de configuração.
+
 ## Escopo fixado antes de abrir o teste
 
 Continuação da [revisão do escopo](REVISAO_ESCOPO_E_CONCLUSAO_20261106.md).

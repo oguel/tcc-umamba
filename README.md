@@ -1,12 +1,13 @@
 # TCC — Segmentação Semântica de Lavouras Cafeeiras na RGI de Guaxupé
 
-> Estado consolidado após as execuções de 06/11/2026:
-> [revisão do escopo e caminho até a defesa](docs/REVISAO_ESCOPO_E_CONCLUSAO_20261106.md)
-> e [comparação de validação conferida](docs/COMPARACAO_VISUAL_VALIDACAO_20261106.md).
-> Os dois modelos concluíram 100 épocas; a U-Net teve maior IoU na validação.
-> O teste reservado continua fechado. A decisão atual é analisar e concluir com
-> os checkpoints existentes, sem novos treinamentos. Os estados anteriores
-> registrados abaixo são históricos e não substituem esses documentos.
+> Estado consolidado: [teste espacial concluído e conferido](docs/RESULTADO_TESTE_ESPACIAL_20261106.md).
+> Os pesos atuais foram avaliados sem novo treinamento. IoU principal: U-Net
+> 74,89%, U-Mamba 71,11%; a vantagem permanece nos pixels únicos por cena.
+> A variante U-Mamba usou menos memória alocada na inferência. O teste agora está
+> exposto e não deve ser usado para ajustar configuração ou escolher pesos.
+> Ver também a [revisão do escopo](docs/REVISAO_ESCOPO_E_CONCLUSAO_20261106.md)
+> e a [validação conferida](docs/COMPARACAO_VISUAL_VALIDACAO_20261106.md).
+> Estados anteriores registrados abaixo são históricos.
 
 Bacharelado em Ciência da Computação, IFSULDEMINAS — Campus Muzambinho.
 
