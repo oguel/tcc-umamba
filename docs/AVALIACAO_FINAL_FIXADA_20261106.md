@@ -69,6 +69,11 @@ derivados privados, com CRS, transform e NoData preservados; não alterar os ori
 
 ## Execução em duas etapas
 
+No Kaggle, usar [notebook 14](../notebooks/14_evaluate_locked_test.ipynb).
+Ele fixa o avaliador no commit `afd587d856835aea0f7c0eafb5d065a9fd598969`,
+localiza os pesos por hash, permite restaurar o backup completo auditado e
+mantém a avaliação desativada por padrão. Não executar novamente o notebook de treino.
+
 Sem `--execute`, a rotina confere bytes dos dados, contratos, pesos e metadados
 espaciais. Não constrói modelo nem faz inferência sobre o teste. Uma pasta nova
 recebe `protocolo.json` e `preflight.json`. No Windows, CUDA-ready será falso:
@@ -100,6 +105,7 @@ avaliação planejada e o não uso para tuning também são compromissos metodol
 ## Estado verificável desta preparação
 
 Preflight local com os backups reais concluído, sem qualquer previsão do teste.
+169 testes de software passaram, além de Ruff, Mypy e convenções dos 15 notebooks.
 Os testes automatizados usam fixtures e inferência sintética para conferir
 isolamento das divisões, substituição de checkpoint, configuração divergente,
 ignorados, mosaicos, conflitos, reconstrução e exportação GeoTIFF. Não são
