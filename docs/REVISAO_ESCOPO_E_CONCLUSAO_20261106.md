@@ -1,5 +1,9 @@
 # Revisão do escopo e caminho até a defesa
 
+Atualização: primeira avaliação espacial concluída e conferida, sem novo treino.
+Ver [resultado dos checkpoints fixos](RESULTADO_TESTE_ESPACIAL_20261106.md).
+As pendências anteriores à execução são históricas; o teste não está mais fechado.
+
 ## Decisão atual
 
 O usuário decidiu preservar as duas execuções concluídas de 100 épocas e seguir
@@ -143,11 +147,14 @@ escopo atual autorizado.
 - [ ] Consolidar discussão dos erros e tabela de eficiência com seus limites.
 - [ ] Formalizar com o orientador o alcance das conclusões e a manutenção dos
   checkpoints atuais, sem reabrir busca de hiperparâmetros.
-- [ ] Preparar avaliador separado para a primeira avaliação do teste reservado:
+- [x] Preparar avaliador separado para a primeira avaliação do teste reservado:
   mesmos dados, hashes, bandas, normalização, limiar 0,5 e checkpoints fixos;
   ignorar 255; não usar o resultado para retreinar. Registrar sobreposições e
   definir antes da abertura a agregação por patches e/ou pixels geográficos únicos.
-- [ ] Executar essa avaliação uma vez, sem novas épocas. O teste se concentra em
+  Implementado em `scripts.evaluate_locked_test`, com protocolo em
+  [AVALIACAO_FINAL_FIXADA_20261106.md](AVALIACAO_FINAL_FIXADA_20261106.md).
+  Preflight real e testes de software passaram; nenhuma inferência do teste executada.
+- [x] Executar essa avaliação uma vez, sem novas épocas. O teste se concentra em
   Nova Resende/Juruaia; reportar esse alcance, sem extrapolar a toda a RGI.
 - [ ] Preparar as novas cenas Sentinel-2: seleção e proveniência, bandas,
   resolução, NoData/nuvens, alinhamento e radiometria compatíveis. Não aplicar

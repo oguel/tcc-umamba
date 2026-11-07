@@ -25,6 +25,7 @@ jobs:
           scripts/inspect_validation.py
           scripts/kaggle_validation_cell.py
           scripts/compare_validation.py
+          scripts/evaluate_locked_test.py
       - name: Ruff format check (src/tests)
         if: hashFiles('pyproject.toml') != ''
         run: uv run ruff format --check src tests
