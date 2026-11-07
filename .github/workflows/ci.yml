@@ -23,6 +23,7 @@ jobs:
           scripts/validate_emater_rgi.py scripts/train_emater_rgi.py scripts/smoke_umamba_gpu.py
           scripts/package_rgi_dataset.py scripts/preflight_training.py
           scripts/inspect_validation.py
+          scripts/kaggle_validation_cell.py
       - name: Ruff format check (src/tests)
         if: hashFiles('pyproject.toml') != ''
         run: uv run ruff format --check src tests

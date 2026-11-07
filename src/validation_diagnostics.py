@@ -55,8 +55,12 @@ def inspect_run(root: Path, run_dir: Path):
 
     report, history, contract = read("metrics.json"), read("history.json"), read("invocation.json")
     status, progress, splits = read("status.json"), read("progress.json"), read("splits.json")
-    if contract != report["run_contract"] or contract["model"] != "unet":
-        raise ValueError("Contrato/modelo incompatível com diagnóstico U-Net.")
+    if (
+        contract != report["run_contract"]
+        or contract["model"] not in ("unet", "umamba")
+        or report["model"] != contract["model"]
+    ):
+        raise ValueError("Contrato/modelo incompatível com diagnóstico U-Net/U-Mamba.")
     if status["status"] != "completed" or status["blind_test_evaluated"]:
         raise ValueError("Execução incompleta ou teste já avaliado; requer revisão.")
     if [row["epoch"] for row in history] != list(range(1, contract["epoch_budget"] + 1)):
@@ -72,7 +76,9 @@ def inspect_run(root: Path, run_dir: Path):
     if contract["split_sha256"] != config["split"]["expected_split_sha256"]:
         raise ValueError("Versão espacial divergente da configuração congelada.")
     selected = validation_pairs(pairs, splits, contract["split_sha256"])
-    best = torch.load(run_dir / "best_unet_rgi.pt", weights_only=True, map_location="cpu")
+    best = torch.load(
+        run_dir / f"best_{contract['model']}_rgi.pt", weights_only=True, map_location="cpu"
+    )
     last = torch.load(run_dir / "last.pt", weights_only=True, map_location="cpu")
     if best["run_contract"] != contract or last["run_contract"] != contract:
         raise ValueError("Checkpoint e contrato não correspondem.")

@@ -69,13 +69,32 @@ def export_panel(image, target, probability, path: Path, title: str):
     plt.close(fig)
 
 
-def diagnose(root: Path, run_dir: Path, output: Path, device_name: str = "cpu"):
+def diagnose(
+    root: Path, run_dir: Path, output: Path, device_name: str = "cpu", prepare_runtime: bool = False
+):
     pairs, checkpoint, report, history = inspect_run(root, run_dir)
+    kind = report["model"]
+    device = torch.device(device_name)
+    runtime = None
+    if kind == "umamba":
+        if device.type != "cuda" or not torch.cuda.is_available():
+            raise RuntimeError(
+                "Diagnóstico U-Mamba requer CUDA; execute no runtime Linux de treino."
+            )
+        if prepare_runtime:
+            from src.models.umamba_runtime import ensure_umamba_runtime
+
+            runtime = ensure_umamba_runtime()
+        from src.models.umamba import build_official_umamba_enc_2d
+
+        model = build_official_umamba_enc_2d(
+            input_channels=4, num_classes=1, input_size=(report["patch_size"], report["patch_size"])
+        ).to(device)
+    else:
+        model = UNet(in_channels=4, out_channels=1).to(device)
     output.mkdir(parents=True, exist_ok=False)
     panels = output / "paineis_validacao"
     panels.mkdir()
-    device = torch.device(device_name)
-    model = UNet(in_channels=4, out_channels=1).to(device)
     model.load_state_dict(checkpoint["model_state_dict"], strict=True)
     model.eval()
     size = report["patch_size"]
@@ -113,7 +132,8 @@ def diagnose(root: Path, run_dir: Path, output: Path, device_name: str = "cpu"):
                 target[0].numpy(),
                 probability,
                 panels / f"{name}.png",
-                f"VALIDAÇÃO • {pair.municipality} • {pair.image.stem} • "
+                f"{'U-Mamba' if kind == 'umamba' else 'U-Net'} • VALIDAÇÃO • "
+                f"{pair.municipality} • {pair.image.stem} • "
                 f"IoU {100 * values['iou']:.1f}%",
             )
             np.savez_compressed(
@@ -136,8 +156,10 @@ def diagnose(root: Path, run_dir: Path, output: Path, device_name: str = "cpu"):
             )
     result = {
         "stage": "validation_diagnostics_not_blind_test",
+        "model": kind,
+        "runtime": runtime,
         "checkpoint_epoch": checkpoint["epoch"],
-        "checkpoint_sha256": _file_sha256(run_dir / "best_unet_rgi.pt"),
+        "checkpoint_sha256": _file_sha256(run_dir / f"best_{kind}_rgi.pt"),
         "last_checkpoint_sha256": _file_sha256(run_dir / "last.pt"),
         "data_fingerprint": report["dataset_fingerprint"],
         "split_sha256": report["run_contract"]["split_sha256"],
@@ -170,8 +192,9 @@ def main():
     parser.add_argument("--run-dir", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--device", choices=("cpu", "cuda"), default="cpu")
+    parser.add_argument("--prepare-runtime", action="store_true")
     args = parser.parse_args()
-    result = diagnose(args.root, args.run_dir, args.output, args.device)
+    result = diagnose(args.root, args.run_dir, args.output, args.device, args.prepare_runtime)
     print({k: v for k, v in result.items() if k not in ("per_patch", "by_municipality")})
 
 
