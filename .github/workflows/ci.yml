@@ -27,6 +27,7 @@ jobs:
           scripts/compare_validation.py
           scripts/evaluate_locked_test.py
           scripts/analyze_validation_spectra.py
+          scripts/infer_new_sentinel.py
       - name: Ruff format check (src/tests)
         if: hashFiles('pyproject.toml') != ''
         run: uv run ruff format --check src tests
