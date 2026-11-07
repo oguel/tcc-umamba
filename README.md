@@ -1,5 +1,13 @@
 # TCC — Segmentação Semântica de Lavouras Cafeeiras na RGI de Guaxupé
 
+> Estado consolidado após as execuções de 06/11/2026:
+> [revisão do escopo e caminho até a defesa](docs/REVISAO_ESCOPO_E_CONCLUSAO_20261106.md)
+> e [comparação de validação conferida](docs/COMPARACAO_VISUAL_VALIDACAO_20261106.md).
+> Os dois modelos concluíram 100 épocas; a U-Net teve maior IoU na validação.
+> O teste reservado continua fechado. A decisão atual é analisar e concluir com
+> os checkpoints existentes, sem novos treinamentos. Os estados anteriores
+> registrados abaixo são históricos e não substituem esses documentos.
+
 Bacharelado em Ciência da Computação, IFSULDEMINAS — Campus Muzambinho.
 
 **Comparação principal:** U-Mamba versus U-Net (baseline) para segmentação binária de café e não-café. A unidade experimental é **a Região Geográfica Imediata de Guaxupé (MG, código 310044)**, e **não** um treinamento separado por município.
