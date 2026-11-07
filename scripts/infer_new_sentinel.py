@@ -9,6 +9,7 @@ from collections import defaultdict
 from math import ceil, floor
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from urllib.error import URLError
 from urllib.parse import urlencode, urljoin
 from urllib.request import urlopen
 
@@ -77,13 +78,15 @@ def grid_mask(region, grid):
     )
 
 
-def fetch_json(url):
-    with urlopen(url, timeout=45) as response:
+def fetch_json(url, timeout=45):
+    with urlopen(url, timeout=timeout) as response:
         return json.load(response)
 
 
 def municipality_grid(grid, inside):
-    members = fetch_json(f"{IBGE}/v1/localidades/regioes-imediatas/{REGION_CODE}/municipios")
+    members = fetch_json(
+        f"{IBGE}/v1/localidades/regioes-imediatas/{REGION_CODE}/municipios", timeout=12
+    )
     if len(members) != 9 or len({entry["id"] for entry in members}) != 9:
         raise ValueError("A lista de municípios diverge da composição de nove municípios da RGI.")
     shapes = []
@@ -91,7 +94,7 @@ def municipality_grid(grid, inside):
         query = urlencode({"formato": "application/vnd.geo+json"})
         url = f"{IBGE}/v4/malhas/municipios/{member['id']}?{query}"
         member["geometry_url"] = url
-        for feature in fetch_json(url)["features"]:
+        for feature in fetch_json(url, timeout=12)["features"]:
             shapes.append((transform_geom("EPSG:4326", CRS, feature["geometry"]), index))
     labels = rasterize(shapes, out_shape=inside.shape, transform=grid["transform"], dtype="uint8")
     labels[~inside] = 0
@@ -100,7 +103,22 @@ def municipality_grid(grid, inside):
     return labels, members
 
 
+def optional_municipality_grid(grid, inside):
+    try:
+        labels, members = municipality_grid(grid, inside)
+    except (URLError, TimeoutError) as error:
+        reason = str(error)
+        print(
+            f"API municipal do IBGE indisponível. Continuando com a malha da RGI: {reason}",
+            flush=True,
+        )
+        return None, [], reason
+    return labels, members, None
+
+
 def coverage_by_municipality(labels, members, valid):
+    if labels is None:
+        return None
     total = np.bincount(labels.ravel(), minlength=len(members) + 1)
     covered = np.bincount(labels[valid], minlength=len(members) + 1)
     return [
@@ -235,8 +253,8 @@ def load_mosaic(grid, region, inside, labels, members):
                 del bands, raw
             valid = source_index != 0
             coverage = coverage_by_municipality(labels, members, valid)
-            if valid.sum() >= 0.99 * inside.sum() and all(
-                entry["valid_fraction"] >= 0.98 for entry in coverage
+            if valid.sum() >= 0.99 * inside.sum() and (
+                coverage is None or all(entry["valid_fraction"] >= 0.98 for entry in coverage)
             ):
                 break
     if not sources:
@@ -328,7 +346,7 @@ def main():
     region = region_geometry()
     grid = grid_profile(region)
     inside = grid_mask(region, grid)
-    labels, members = municipality_grid(grid, inside)
+    labels, members, municipal_error = optional_municipality_grid(grid, inside)
     image, source_index, sources, ranked = load_mosaic(grid, region, inside, labels, members)
     valid = source_index != 0
     coverage = coverage_by_municipality(labels, members, valid)
@@ -396,9 +414,16 @@ def main():
             "valid_fraction": valid_fraction,
             "municipal_coverage": coverage,
             "municipal_boundary_sources": members,
-            "region_pixels_unassigned_to_municipality": int((inside & (labels == 0)).sum()),
-            "coverage_target_met": valid_fraction >= 0.99
-            and all(row["valid_fraction"] >= 0.98 for row in coverage),
+            "municipal_coverage_unavailable_reason": municipal_error,
+            "region_pixels_unassigned_to_municipality": (
+                int((inside & (labels == 0)).sum()) if labels is not None else None
+            ),
+            "regional_coverage_target_met": valid_fraction >= 0.99,
+            "municipal_coverage_target_met": (
+                all(row["valid_fraction"] >= 0.98 for row in coverage)
+                if coverage is not None
+                else None
+            ),
             "prediction_counts": dict(
                 zip(
                     ("neither", "unet_only", "umamba_only", "both"),

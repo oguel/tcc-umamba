@@ -2,6 +2,8 @@
 
 O notebook 15 usa a geometria da RGI 310044 da malha do IBGE de 2025, versionada em `data/external/ibge`. A grade de 10 m cobre todo o polígono e o relatório apresenta a cobertura observada dos nove municípios. As geometrias municipais vêm da API de malhas do IBGE. Pequenas diferenças entre as malhas regionais e municipais são registradas na contagem de pixels regionais sem município atribuído.
 
+Se a API municipal ficar indisponível, o notebook usa a malha regional versionada para montar o mesmo mosaico. A cobertura municipal fica com valor nulo no relatório, junto ao motivo da indisponibilidade. O alvo de cobertura disponível nesse caso é o regional.
+
 ## Seleção e preparo
 
 - O catálogo Earth Search fornece as cenas Sentinel-2 Collection 1 L2A de julho a setembro de 2024. A seleção usa a união da cobertura SCL dentro da região por data.

@@ -1,3 +1,5 @@
+from urllib.error import URLError
+
 import numpy as np
 import rasterio
 import torch
@@ -48,6 +50,18 @@ def test_grid_covers_whole_polygon_and_excludes_padding():
     grid = grid_profile(region)
     assert grid["width"] == grid["height"] == 512
     assert grid_mask(region, grid).sum() == 259 * 257
+
+
+def test_municipal_timeout_leaves_regional_mask_available(monkeypatch):
+    def unavailable(*args, **kwargs):
+        raise URLError(TimeoutError("timed out"))
+
+    monkeypatch.setattr(infer_new_sentinel, "fetch_json", unavailable)
+    inside = np.array([[True, False]])
+    labels, members, reason = infer_new_sentinel.optional_municipality_grid({}, inside)
+    assert "timed out" in reason
+    assert infer_new_sentinel.coverage_by_municipality(labels, members, inside) is None
+    np.testing.assert_array_equal(inside, [[True, False]])
 
 
 def test_mosaic_preserves_first_date_and_fills_other_municipality(monkeypatch):
