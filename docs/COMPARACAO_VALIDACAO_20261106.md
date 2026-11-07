@@ -1,5 +1,10 @@
 # Backups U-Net/U-Mamba: comparação controlada de validação
 
+Atualização: a inferência de validação da U-Mamba já foi recebida e conferida.
+As pendências de reprodução abaixo descrevem o momento da auditoria dos backups;
+o estado atual e a comparação pixel a pixel estão em
+[COMPARACAO_VISUAL_VALIDACAO_20261106.md](COMPARACAO_VISUAL_VALIDACAO_20261106.md).
+
 ## Integridade
 
 Backup correto recebido: `backup_COMPLETO_UNET_UMAMBA.zip`, 53.710.616 bytes.
