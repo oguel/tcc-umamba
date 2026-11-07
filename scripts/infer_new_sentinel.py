@@ -1,15 +1,18 @@
-"""Aplica os pesos fixos a um recorte de outra data do Sentinel-2."""
+"""Aplica os pesos fixos a um mosaico Sentinel-2 da RGI de Guaxupé."""
 
 from __future__ import annotations
 
 import argparse
 import json
 import subprocess
+from collections import defaultdict
+from math import ceil, floor
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urljoin
 from urllib.request import urlopen
 
+import geopandas as gpd
 import matplotlib
 
 matplotlib.use("Agg")
@@ -17,11 +20,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import rasterio
 import torch
+from affine import Affine
 from matplotlib.colors import ListedColormap
 from matplotlib.patches import Patch
+from rasterio.features import geometry_mask, rasterize
 from rasterio.transform import array_bounds, from_origin
 from rasterio.vrt import WarpedVRT
-from rasterio.warp import transform, transform_bounds
+from rasterio.warp import transform_bounds, transform_geom
 
 from src.data.emater_dataset import normalize_sentinel_dn
 from src.data.rgi_fingerprint import _file_sha256
@@ -32,16 +37,82 @@ CATALOG = "https://earth-search.aws.element84.com/v1"
 COLLECTION = "sentinel-2-c1-l2a"
 DATES = "2024-07-01T00:00:00Z/2024-09-30T23:59:59Z"
 CRS = "EPSG:32723"
-SIZE = 1024
+REGION_CODE = "310044"
+BOUNDARY = Path(__file__).resolve().parents[1] / (
+    "data/external/ibge/mg_rg_immediatas_2025/mg_rg_immediatas_2025.shp"
+)
+IBGE = "https://servicodados.ibge.gov.br/api"
+MAX_DATES = 4
 PATCH_SIZE = 256
 BANDS = dict(zip(("blue", "green", "red", "nir"), ("B02", "B03", "B04", "B08"), strict=True))
 
 
-def grid_profile():
-    east, north = transform("EPSG:4326", CRS, [-46.74], [-21.30])
-    left = round(east[0] / 10) * 10 - SIZE * 5
-    top = round(north[0] / 10) * 10 + SIZE * 5
-    return {"crs": CRS, "transform": from_origin(left, top, 10, 10), "height": SIZE, "width": SIZE}
+def region_geometry():
+    boundaries = gpd.read_file(BOUNDARY)
+    region = boundaries.loc[boundaries["CD_RGI"].astype(str) == REGION_CODE].to_crs(CRS)
+    if len(region) != 1:
+        raise ValueError("Esperada exatamente uma geometria da RGI 310044.")
+    return region.geometry.iloc[0]
+
+
+def grid_profile(region):
+    west, south, east, north = region.bounds
+    left, top = floor(west / 10) * 10, ceil(north / 10) * 10
+    width = ceil((east - left) / (10 * PATCH_SIZE)) * PATCH_SIZE
+    height = ceil((top - south) / (10 * PATCH_SIZE)) * PATCH_SIZE
+    return {
+        "crs": CRS,
+        "transform": from_origin(left, top, 10, 10),
+        "height": height,
+        "width": width,
+    }
+
+
+def grid_mask(region, grid):
+    return geometry_mask(
+        [region],
+        out_shape=(grid["height"], grid["width"]),
+        transform=grid["transform"],
+        invert=True,
+    )
+
+
+def fetch_json(url):
+    with urlopen(url, timeout=45) as response:
+        return json.load(response)
+
+
+def municipality_grid(grid, inside):
+    members = fetch_json(f"{IBGE}/v1/localidades/regioes-imediatas/{REGION_CODE}/municipios")
+    if len(members) != 9 or len({entry["id"] for entry in members}) != 9:
+        raise ValueError("A lista de municípios diverge da composição de nove municípios da RGI.")
+    shapes = []
+    for index, member in enumerate(members, start=1):
+        query = urlencode({"formato": "application/vnd.geo+json"})
+        url = f"{IBGE}/v4/malhas/municipios/{member['id']}?{query}"
+        member["geometry_url"] = url
+        for feature in fetch_json(url)["features"]:
+            shapes.append((transform_geom("EPSG:4326", CRS, feature["geometry"]), index))
+    labels = rasterize(shapes, out_shape=inside.shape, transform=grid["transform"], dtype="uint8")
+    labels[~inside] = 0
+    if np.any(np.bincount(labels.ravel(), minlength=10)[1:] == 0):
+        raise ValueError("Um município da RGI ficou sem pixels na malha municipal.")
+    return labels, members
+
+
+def coverage_by_municipality(labels, members, valid):
+    total = np.bincount(labels.ravel(), minlength=len(members) + 1)
+    covered = np.bincount(labels[valid], minlength=len(members) + 1)
+    return [
+        {
+            "id": entry["id"],
+            "nome": entry["nome"],
+            "pixels": int(total[i]),
+            "valid_pixels": int(covered[i]),
+            "valid_fraction": float(covered[i] / total[i]),
+        }
+        for i, entry in enumerate(members, start=1)
+    ]
 
 
 def catalog_items(grid):
@@ -56,13 +127,27 @@ def catalog_items(grid):
             "limit": 100,
         }
     )
-    with urlopen(f"{CATALOG}/search?{query}", timeout=45) as response:
-        result = json.load(response)
-    if any(link.get("rel") == "next" for link in result.get("links", [])):
-        raise RuntimeError("Busca paginada. Reduza o intervalo antes de selecionar a cena.")
+    url = f"{CATALOG}/search?{query}"
+    items = {}
+    seen = set()
+    while url:
+        if not url.startswith(f"{CATALOG}/") or url in seen:
+            raise ValueError("Paginação inesperada no catálogo.")
+        seen.add(url)
+        result = fetch_json(url)
+        items.update((item["id"], item) for item in result["features"])
+        following = next(
+            (link["href"] for link in result.get("links", []) if link.get("rel") == "next"), None
+        )
+        url = urljoin(url, following) if following else None
     return sorted(
-        result["features"],
-        key=lambda item: (item["properties"].get("eo:cloud_cover", 100), item["id"]),
+        items.values(),
+        key=lambda item: (
+            item["properties"]["eo:cloud_cover"]
+            if item["properties"].get("eo:cloud_cover") is not None
+            else 100,
+            item["id"],
+        ),
     )
 
 
@@ -77,43 +162,86 @@ def read_asset(asset, grid):
             return vrt.read(1, masked=True).filled(0)
 
 
-def load_scene(grid):
-    """Escolhe a cena pela cobertura de pixels válidos antes da inferência."""
-    attempts = []
+def load_mosaic(grid, region, inside, labels, members):
+    """Prioriza a data com maior cobertura SCL e completa lacunas com outras datas."""
+    by_day = defaultdict(list)
+    for item in catalog_items(grid):
+        if item["collection"] != COLLECTION:
+            raise ValueError("Coleção inesperada.")
+        if (set(BANDS) | {"scl"}).issubset(item["assets"]):
+            by_day[item["properties"]["datetime"][:10]].append(item)
+    scl_grid = {
+        **grid,
+        "width": grid["width"] // 2,
+        "height": grid["height"] // 2,
+        "transform": grid["transform"] * Affine.scale(2),
+    }
+    scl_inside = grid_mask(region, scl_grid)
+    ranked = []
+    image = np.zeros((4, *inside.shape), dtype=np.float32)
+    source_index = np.zeros(inside.shape, dtype=np.uint16)
+    sources = []
     with rasterio.Env(GDAL_DISABLE_READDIR_ON_OPEN="EMPTY_DIR", GDAL_HTTP_TIMEOUT="45"):
-        for item in catalog_items(grid):
-            if item["collection"] != COLLECTION:
-                raise ValueError("Coleção inesperada.")
-            assets = item["assets"]
-            if not (set(BANDS) | {"scl"}).issubset(assets):
-                continue
-            print(f"Conferindo cena {item['id']}", flush=True)
-            scl = read_asset(assets["scl"], grid)
-            valid = np.isin(scl, (4, 5, 6))
-            candidate = {"id": item["id"], "scl_clear_fraction": float(valid.mean())}
-            attempts.append(candidate)
-            if valid.mean() < 0.90:
-                continue
-            channels = []
-            radiometry = {}
-            for key, band in BANDS.items():
-                asset = assets[key]
-                metadata = asset["raster:bands"][0]
-                scale, offset = float(metadata["scale"]), float(metadata["offset"])
-                if (scale, offset, metadata.get("nodata")) != (0.0001, -0.1, 0):
-                    raise ValueError(f"Radiometria inesperada em {band}: {metadata}")
-                values = read_asset(asset, grid)
-                if values.dtype != np.uint16:
-                    raise ValueError(f"Esperado DN uint16 em {band}.")
-                valid &= values != 0
-                channels.append(normalize_sentinel_dn(values, offset=offset / scale))
-                radiometry[band] = {"scale": scale, "offset": offset, "url": asset["href"]}
-            candidate["valid_fraction"] = float(valid.mean())
-            if valid.mean() >= 0.90:
-                image = np.stack(channels)
-                image[:, ~valid] = 0
-                return image, valid, item, attempts, radiometry
-    raise RuntimeError(f"Nenhuma cena com 90% de pixels válidos. Candidatas: {attempts}")
+        for day, items in sorted(by_day.items()):
+            print(f"Conferindo cobertura SCL de {day}", flush=True)
+            clear = np.zeros_like(scl_inside)
+            for item in items:
+                clear |= np.isin(read_asset(item["assets"]["scl"], scl_grid), (4, 5, 6))
+            fraction = float(np.count_nonzero(clear & scl_inside) / scl_inside.sum())
+            if fraction > 0:
+                ranked.append(
+                    {
+                        "day": day,
+                        "scl_fraction_20m": fraction,
+                        "scenes": [item["id"] for item in items],
+                    }
+                )
+        ranked.sort(key=lambda row: (-row["scl_fraction_20m"], row["day"]))
+        for candidate in ranked[:MAX_DATES]:
+            for item in by_day[candidate["day"]]:
+                assets = item["assets"]
+                scl = read_asset(assets["scl"], grid)
+                take = inside & (source_index == 0) & np.isin(scl, (4, 5, 6))
+                if not take.any():
+                    continue
+                print(f"Compondo {item['id']}", flush=True)
+                bands = []
+                radiometry = {}
+                for key, band in BANDS.items():
+                    asset = assets[key]
+                    metadata = asset["raster:bands"][0]
+                    scale, offset = float(metadata["scale"]), float(metadata["offset"])
+                    if (scale, offset, metadata.get("nodata")) != (0.0001, -0.1, 0):
+                        raise ValueError(f"Radiometria inesperada em {band}: {metadata}")
+                    raw = read_asset(asset, grid)
+                    if raw.dtype != np.uint16:
+                        raise ValueError(f"Esperado DN uint16 em {band}.")
+                    take &= raw != 0
+                    bands.append(raw)
+                    radiometry[band] = {"scale": scale, "offset": offset, "url": asset["href"]}
+                if take.any():
+                    for channel, raw in enumerate(bands):
+                        image[channel, take] = normalize_sentinel_dn(raw[take])
+                    index = len(sources) + 1
+                    source_index[take] = index
+                    sources.append(
+                        {
+                            "index": index,
+                            "pixels": int(take.sum()),
+                            "stac": item,
+                            "radiometry": radiometry,
+                        }
+                    )
+                del bands, raw
+            valid = source_index != 0
+            coverage = coverage_by_municipality(labels, members, valid)
+            if valid.sum() >= 0.99 * inside.sum() and all(
+                entry["valid_fraction"] >= 0.98 for entry in coverage
+            ):
+                break
+    if not sources:
+        raise RuntimeError("Nenhuma cena cobriu pixels válidos na RGI no intervalo selecionado.")
+    return image, source_index, sources, ranked
 
 
 def predict(model, image, valid, device):
@@ -149,16 +277,19 @@ def write_tiff(path, values, grid, nodata):
         output.write(values, 1)
 
 
-def compare_panel(path, image, valid, disagreement):
+def compare_panel(path, image, inside, valid, disagreement):
     colors = ["#eeeeee", "#2563eb", "#ea580c", "#15803d", "#555555"]
     labels = ["Nenhuma", "Só U-Net", "Só U-Mamba", "Ambas", "Inválido"]
     fig, axes = plt.subplots(1, 2, figsize=(10, 5.6))
-    rgb = np.clip(image[[2, 1, 0]].transpose(1, 2, 0) / 0.3, 0, 1)
-    rgb[~valid] = 0.33
+    preview = np.s_[::6, ::6]
+    rgb = np.clip(image[:, ::6, ::6][[2, 1, 0]].transpose(1, 2, 0) / 0.3, 0, 1)
+    rgb[~valid[preview]] = 0.33
+    rgb[~inside[preview]] = 1
     axes[0].imshow(rgb)
     axes[0].set_title("Sentinel-2 em RGB")
+    panel = np.ma.masked_where(~inside[preview], np.where(valid[preview], disagreement[preview], 4))
     axes[1].imshow(
-        np.where(valid, disagreement, 4),
+        panel,
         cmap=ListedColormap(colors),
         vmin=0,
         vmax=4,
@@ -194,9 +325,15 @@ def main():
     from src.models.umamba_runtime import ensure_umamba_runtime
 
     runtime = ensure_umamba_runtime()
-    grid = grid_profile()
-    image, valid, item, attempts, radiometry = load_scene(grid)
-    print(f"Cena selecionada: {item['id']} ({valid.mean():.1%} válidos)", flush=True)
+    region = region_geometry()
+    grid = grid_profile(region)
+    inside = grid_mask(region, grid)
+    labels, members = municipality_grid(grid, inside)
+    image, source_index, sources, ranked = load_mosaic(grid, region, inside, labels, members)
+    valid = source_index != 0
+    coverage = coverage_by_municipality(labels, members, valid)
+    valid_fraction = float(valid.sum() / inside.sum())
+    print(f"Cobertura válida da RGI: {valid_fraction:.1%}", flush=True)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with TemporaryDirectory(dir=args.output.parent) as temporary:
         output = Path(temporary) / "result"
@@ -222,6 +359,7 @@ def main():
                 grid,
                 255,
             )
+            del probability
         disagreement = predictions["unet"].astype(np.uint8) + 2 * predictions["umamba"]
         write_tiff(
             output / "comparacao.tif",
@@ -229,25 +367,38 @@ def main():
             grid,
             255,
         )
-        compare_panel(output / "comparacao.png", image, valid, disagreement)
+        write_tiff(output / "cena_por_pixel.tif", source_index, grid, 0)
+        write_tiff(
+            output / "cobertura.tif",
+            np.where(inside, np.where(valid, 1, 2), 0).astype(np.uint8),
+            grid,
+            0,
+        )
+        compare_panel(output / "comparacao.png", image, inside, valid, disagreement)
         report = {
-            "stage": "temporal_transfer_unlabeled_pilot",
-            "scene": item["id"],
-            "datetime": item["properties"]["datetime"],
+            "stage": "regional_temporal_transfer_unlabeled",
+            "region_code": REGION_CODE,
+            "boundary": BOUNDARY.name,
             "collection": COLLECTION,
             "catalog": CATALOG,
             "search_interval": DATES,
-            "selection": attempts,
-            "bounds_utm": array_bounds(SIZE, SIZE, grid["transform"]),
+            "selection": ranked,
+            "max_dates": MAX_DATES,
+            "bounds_utm": array_bounds(grid["height"], grid["width"], grid["transform"]),
             "crs": CRS,
-            "radiometry": radiometry,
             "scl_valid": [4, 5, 6],
             "threshold": THRESHOLD,
             "patch_size": PATCH_SIZE,
             "checkpoints": CHECKPOINTS,
             "runtime": runtime,
             "valid_pixels": int(valid.sum()),
-            "valid_fraction": float(valid.mean()),
+            "region_pixels": int(inside.sum()),
+            "valid_fraction": valid_fraction,
+            "municipal_coverage": coverage,
+            "municipal_boundary_sources": members,
+            "region_pixels_unassigned_to_municipality": int((inside & (labels == 0)).sum()),
+            "coverage_target_met": valid_fraction >= 0.99
+            and all(row["valid_fraction"] >= 0.98 for row in coverage),
             "prediction_counts": dict(
                 zip(
                     ("neither", "unet_only", "umamba_only", "both"),
@@ -258,7 +409,7 @@ def main():
             "revision": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
         }
         (output / "relatorio.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
-        (output / "cena_stac.json").write_text(json.dumps(item, indent=2), encoding="utf-8")
+        (output / "cenas_stac.json").write_text(json.dumps(sources, indent=2), encoding="utf-8")
         output.rename(args.output)
 
 
