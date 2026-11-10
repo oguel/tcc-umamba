@@ -1,86 +1,21 @@
-# TCC — Segmentação Semântica de Lavouras Cafeeiras na RGI de Guaxupé
+# Segmentação semântica de lavouras cafeeiras no Sudoeste Mineiro
 
-Bacharelado em Ciência da Computação, IFSULDEMINAS — Campus Muzambinho.
+TCC de Ciência da Computação, IFSULDEMINAS – Campus Muzambinho. O estudo avalia a U-Mamba em imagens Sentinel-2 da Região Geográfica Imediata de Guaxupé (MG), com a U-Net como referência comparativa.
 
-**Comparação principal:** U-Mamba versus U-Net (baseline) para segmentação binária de café e não-café. A unidade experimental é **a Região Geográfica Imediata de Guaxupé (MG, código 310044)**, e **não** um treinamento separado por município.
+## Qual execução consultar
 
-## Fonte oficial dos experimentos (a partir de novembro de 2026)
+| Etapa | Entrada ou código | Evidência a conferir |
+|---|---|---|
+| Base principal | No Drive do projeto, abra `00_DADOS_OFICIAIS_RGI_GUAXUPE`. Use as duas partes de `Municipios` e a variante `Patches_P512_S300_NN`. | 206 pares na RGI, com 89 para treino, 20 para validação, 20 para teste e 77 excluídos. |
+| Treinamento inicial | [Notebook 13 na revisão usada](https://github.com/oguel/tcc-umamba/blob/19d42d664ddf95114cff1115b8cf2ed71d4e4274/notebooks/13_kaggle_training.ipynb) | Os pesos selecionados foram das épocas 79 (U-Net) e 87 (U-Mamba). |
+| Teste espacial com máscaras | [Notebook 14](https://github.com/oguel/tcc-umamba/blob/feat/avaliacao-teste-fixado-20261106/notebooks/14_evaluate_locked_test.ipynb) e [revisão executada](https://github.com/oguel/tcc-umamba/tree/afd587d856835aea0f7c0eafb5d065a9fd598969) | IoU de café de 74,89% (U-Net) e 71,11% (U-Mamba). Conferir `protocolo.json` e `resultado_modelo.json` no backup do teste. |
+| Extensão até 300 épocas | Backups das duas redes na pasta `models/Backups - base original - 300 épocas - 2026-11-09` do Drive do projeto | Curvas e máximos na validação. O teste espacial usou os pesos das épocas 79 e 87. |
+| Aplicação em 2024 | [Notebook 15 na revisão usada](https://github.com/oguel/tcc-umamba/blob/fce8437a03bacf9ee5f1712d8812951b0a53ff81/notebooks/15_infer_new_sentinel.ipynb) | Previsões exploratórias sem máscaras contemporâneas. Consultar `04_GALERIA_TCC/05_SENTINEL2_RGI`. |
 
-A fonte principal são as novas pastas `Municipios` e `Cenas` fornecidas para o TCC e armazenadas no Google Drive:
+Para reproduzir, selecione a revisão da etapa, use cópias dos dados no Kaggle e confira os identificadores da divisão e dos pesos no protocolo antes de executar. A U-Mamba requer Linux, GPU CUDA e o ambiente indicado pelo notebook. O Apêndice A da monografia identifica os backups, as versões executadas e os resultados correspondentes.
 
-```text
-MyDrive/tcc/
-  00_DADOS_OFICIAIS_RGI_GUAXUPE/
-    Municipios/       # downloads fracionados, GeoTIFFs e máscaras
-    Cenas/            # cenas e metadados de origem
-  01_DOCUMENTACAO_TCC/
-  02_HISTORICO_TESTES/
-  03_REFERENCIAS_MONOGRAFIA/
-  data/               # legado do pipeline; preservar
-  models/             # checkpoints EXPLORATÓRIOS, não definitivos
-  artifacts/          # métricas EXPLORATÓRIAS, não definitivas
-  repo/               # espelho/cópia do código
-  secrets/            # nunca versionar credenciais
-```
+## Materiais anteriores
 
-A variante oficial é `Patches_P512_S300_NN` (não `Fora0_M0`). As imagens e máscaras de um mesmo patch podem estar em downloads **001 e 002 distintos**; o leitor as associa pela identidade do patch, sem mover os originais.\n\nO lote contém recortes georreferenciados **512×512** com `stride=300`, e máscaras com `0=não-café`, `1=café` e `255=ignorar`. Nunca usar no lote novo a conversão PNG antiga `(mask > 127)`.
+Os [notebooks 00–12 de setembro](https://github.com/oguel/tcc-umamba/tree/df37706849aec4a9f67a7ae8d413a49b9ca58f89/notebooks) documentam a preparação exploratória, incluindo o MapBiomas, e os primeiros testes técnicos. Os guias [Kaggle](docs/KAGGLE.md) e [protocolo inicial](docs/PROTOCOLO_DEFINITIVO_RGI.md) descrevem a preparação anterior às execuções registradas acima. Consulte os notebooks das revisões indicadas para os experimentos da monografia.
 
-As pastas disponíveis estão organizadas por município/ano **apenas para procedência dos dados**. O treinamento agrega os recortes válidos da RGI. **Três Pontas não integra a RGI de Guaxupé** e fica reservado para possível avaliação externa, não para treino/validação/teste principal.
-
-> Atenção sobre a origem: os metadados de cenas disponíveis apontam para Sentinel-2, enquanto as máscaras são descritas como EMATER. Registrar com precisão a proveniência de imagens e rótulos antes da redação científica. A **inferência regional em futuras cenas Sentinel-2** continua uma etapa posterior, não um resultado já obtido.
-
-## Histórico separado
-
-Os treinamentos exploratórios de setembro com imagens antigas foram testes de funcionamento do pipeline, não a avaliação do TCC. Não comparar seus números diretamente com futuras métricas da base definitiva. Os arquivos de teste foram preservados no Drive.
-
-## Reprodução do dataset regional no Kaggle
-
-1. Criar um dataset privado no Kaggle com cópia fiel de `Municipios/`, após verificar as permissões de uso dos dados.
-2. Selecionar uma GPU compatível, conforme a disponibilidade e a cota da conta.
-3. Clonar este repositório (ou anexá-lo como código) e instalar dependências da U-Net/dados com `pip install -r requirements-runtime.txt`.
-4. No diretório-raiz do repositório, auditar os dados:
-
-```bash
-python -m scripts.validate_emater_rgi --root /kaggle/input/NOME_DO_DATASET --output /kaggle/working/auditoria_rgi.json
-```
-
-5. Após a auditoria, executar um treino piloto da U-Net:
-
-```bash
-python -m scripts.train_emater_rgi --root /kaggle/input/NOME_DO_DATASET --model unet --epochs 2 --output /kaggle/working/tcc_rgi
-```
-
-6. Para treinar a U-Mamba, primeiro verificar e preparar o runtime CUDA+Mamba fixado no projeto. **Não assumir que a wheel validada anteriormente em Colab funcionará automaticamente no Kaggle.**
-
-A documentação técnica está em [docs/PROTOCOLO_DEFINITIVO_RGI.md](docs/PROTOCOLO_DEFINITIVO_RGI.md), [docs/AUGMENTACAO.md](docs/AUGMENTACAO.md) e [docs/KAGGLE.md](docs/KAGGLE.md).
-
-### Primeiro teste técnico, antes do treino científico
-
-```bash
-python -m scripts.smoke_emater_rgi --synthetic --patch-size 256 --augment
-python -m scripts.smoke_emater_rgi --synthetic --patch-size 512 --augment
-```
-
-O script realiza uma atualização de uma U-Net compacta em CPU com raster sintético, testa o fluxo de máscaras/augmentação e **não produz resultados científicos**. Para treinar sobre dados reais **após a auditoria espacial**, o runner aceita `--patch-size 256|512`, `--augment` e `--train-views-per-image 1..4`. Em 256, validação e teste abrangem os quatro quadrantes fixos, sem augmentação. Os GeoTIFFs do Drive nunca são alterados.
-
-## Metodologia
-
-- **Modelos:** U-Net e U-Mamba, saída de um canal (Café versus Não-Café).
-- **Canais iniciais de imagem:** B02, B03, B04, B08 (confirmar ordem espectral no raster).
-- **Pré-processamento:** DN/offset radiométrico da cena; máscaras com pixels ignorados em todos os cálculos.
-- **Divisão:** blocos espaciais e exclusão de sobreposição; holdout espacial de teste independente da validação.
-- **Critério:** IoU, Dice/F1, precisão, revocação, acurácia, matriz de confusão, tempo de época e VRAM.
-- **Reprodutibilidade:** guardar semente, configuração, ambiente e métricas de execução.
-- **Artefatos:** imagens e pesos fora do GitHub; apenas código, testes e documentação versionados.
-
-## Estado atual
-
-O pipeline oficial está na branch principal `main`. Os scripts são independentes de plataforma e os caminhos de entrada/saída são configuráveis. **Não há resultados oficiais de treinamento com o novo conjunto confirmados ainda.**
-
-## Tecnologias
-
-Python, PyTorch, Rasterio, NumPy, NVIDIA CUDA/Mamba, Kaggle e Google Drive.
-
-## Licença
-
-Código sob licença MIT, respeitando as licenças de componentes terceiros; dados recebidos de parceiros **não** são implicitamente públicos.
+Dados, pesos e credenciais ficam fora do GitHub. Código sob licença MIT.
